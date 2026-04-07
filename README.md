@@ -7,9 +7,13 @@
 该入口脚本会先做预检查并统一注入运行参数，功能包括：
 
 - 支持 `--check` 仅执行预检查（不启动主流程）
+- 默认依次启动 `base_4drive`、`fastlio_ws`、`far_planner` 的实机脚本，再启动 `task5_person_tracker`
+- 支持 `--person-only`、`--no-base`、`--no-fastlio`、`--no-far` 进行组件裁剪
 - 检查主启动脚本、YOLO 目录、语音目录、`python3` 可用性
-- 若存在 `.venv` 则自动激活，并注入相对路径默认变量（`YOLO_PERCEPTION_DIR`、`SPEECH_MODULE_FILE`、`SPEECH_ASR_FILE`）
+- 若存在 `.venv` 则自动激活（仅供 `task5_person_tracker` Python 依赖），并注入相对路径默认变量（`YOLO_PERCEPTION_DIR`、`SPEECH_MODULE_FILE`、`SPEECH_ASR_FILE`）
 - 将额外参数透传给 `task5_person_tracker/run_task5_person_follow_voice.sh` 并启动 Task5 主流程
+
+说明：三个独立实机脚本 `fastlio_ws/run_task5_fastlio_real.sh`、`far_planner/run_task5_farplanner_real.sh`、`base_4drive/run_task5_base_real.sh` 不包含虚拟环境激活逻辑，仅依赖各自 ROS 工作区的 `devel/setup.bash`。
 
 ## 1. 目录概览
 
@@ -92,7 +96,25 @@ source .venv/bin/activate
 bash run_task5_all.sh
 ```
 
-其中根目录脚本 `run_task5_all.sh` 会统一调用 `task5_person_tracker/run_task5_person_follow_voice.sh`，启动当前 Task5 所需脚本集合。
+其中根目录脚本 `run_task5_all.sh` 默认启动顺序为：
+
+1. `base_4drive/run_task5_base_real.sh`
+2. `fastlio_ws/run_task5_fastlio_real.sh`
+3. `far_planner/run_task5_farplanner_real.sh`
+4. `task5_person_tracker/run_task5_person_follow_voice.sh`
+
+常用模式：
+
+```bash
+# 仅预检查
+bash run_task5_all.sh --check
+
+# 仅启动 person_tracker（不启动底层三模块）
+bash run_task5_all.sh --person-only
+
+# 跳过 FAR，仅启动 base + fastlio + person_tracker
+bash run_task5_all.sh --no-far
+```
 
 ## 6. 当前默认行为说明
 
