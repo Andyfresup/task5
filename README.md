@@ -2,14 +2,13 @@
 
 本仓库根目录聚合了 Task5 相关代码与依赖工程，当前推荐的运行入口是：
 
-- `run_task5_all.sh`
+- `task5_person_tracker/run_task5_person_follow_voice.sh`
 
-该入口脚本会先做预检查并统一注入运行参数，功能包括：
+该入口会启动人物检测、跟随目标发布、点云栅格桥接、速度仲裁等模块，并支持：
 
-- 支持 `--check` 仅执行预检查（不启动主流程）
-- 检查主启动脚本、YOLO 目录、语音目录、`python3` 可用性
-- 若存在 `.venv` 则自动激活，并注入相对路径默认变量（`YOLO_PERCEPTION_DIR`、`SPEECH_MODULE_FILE`、`SPEECH_ASR_FILE`）
-- 将额外参数透传给 `task5_person_tracker/run_task5_person_follow_voice.sh` 并启动 Task5 主流程
+- 顾客点单语义识别（默认走局域网 Ollama）
+- 吧台前实时 YOLO 检测
+- 检测标签与点单别名模糊匹配（复用点单语义后端）
 
 ## 1. 目录概览
 
@@ -123,7 +122,7 @@ bash run_task5_all.sh
 export FOOD_SEMANTIC_OLLAMA_URL="http://192.168.1.88:11434"
 export FOOD_SEMANTIC_OLLAMA_MODEL="llama3.2:3b"
 export TABLE_FOOD_CHECK_DELAY="1.2"
-bash run_task5_all.sh
+bash task5_person_tracker/run_task5_person_follow_voice.sh
 ```
 
 ## 8. 快速排障
