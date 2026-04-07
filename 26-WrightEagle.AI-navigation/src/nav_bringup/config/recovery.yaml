@@ -1,4 +1,0 @@
-recovery_behaviors:
-  - name: goback
-    type: goback_recovery/GobackRecovery
-

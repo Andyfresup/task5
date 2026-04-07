@@ -1,0 +1,15 @@
+# RoboCup26 Task5 root requirements
+# Install from repo root: pip install -r requirements.txt
+
+# Core Task5 stack
+-r task5_person_tracker/requirements.txt
+
+# Voice pipeline dependencies used by task5_person_tracker
+faster-whisper>=0.9.0
+pyaudio>=0.2.11
+resampy>=0.2.2
+silero-vad>=4.0
+sounddevice>=0.4.6
+
+# Real-time YOLO perception dependencies (table checking)
+ultralytics>=8.0.0

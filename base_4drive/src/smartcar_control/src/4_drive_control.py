@@ -2,6 +2,7 @@
 
 from enum import IntEnum
 import struct
+import os
 import sys
 import time
 from threading import Lock, Thread
@@ -23,7 +24,9 @@ import tf
 import tf.transformations as tft
 
 # Add serui module to path
-sys.path.insert(0, '/home/andy/robocup26/base_4drive/src')
+serui_root = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if serui_root not in sys.path:
+    sys.path.insert(0, serui_root)
 from serui import *
 
 flag_move = 0
