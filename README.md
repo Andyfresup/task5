@@ -9,7 +9,10 @@
 - 支持 `--check` 仅执行预检查（不启动主流程）
 - 默认依次启动 `base_4drive`、`fastlio_ws`、`far_planner` 的实机脚本，再启动 `task5_person_tracker`
 - 支持 `--person-only`、`--no-base`、`--no-fastlio`、`--no-far` 进行组件裁剪
+- 支持 `--` 后透传参数到 `task5_person_tracker/run_task5_person_follow_voice.sh`（当前为预留透传位）
 - 检查主启动脚本、YOLO 目录、语音目录、`python3` 可用性
+- 支持 `STARTUP_DELAY`（秒）控制底层模块分步拉起间隔，默认 `2`
+- 底层三模块在后台运行，主脚本退出时会自动清理这些后台进程
 - 若存在 `.venv` 则自动激活（仅供 `task5_person_tracker` Python 依赖），并注入相对路径默认变量（`YOLO_PERCEPTION_DIR`、`SPEECH_MODULE_FILE`、`SPEECH_ASR_FILE`）
 - 将额外参数透传给 `task5_person_tracker/run_task5_person_follow_voice.sh` 并启动 Task5 主流程
 
@@ -23,6 +26,15 @@
 - `26-WrightEagle.AI-YOLO-Perception`：实时吧台物体检测（默认调用 `realsenseinfer.py`）
 - `26-WrightEagle.AI-Speech`：TTS/ASR 模块（脚本中自动按路径启用）
 - `far_planner`、`fastlio_ws`、`base_4drive`：导航/定位相关工程（按你的系统启动）
+
+根目录其他工程（当前 `run_task5_all.sh` 默认不直接拉起）：
+
+- `26-WrightEagle.AI-MHRC-planning`：任务规划/推理相关工程（独立测试与演示）
+
+根目录关键文件：
+
+- `run_task5_all.sh`：Task5 全局入口脚本
+- `requirements.txt`：根级 Python 依赖清单
 
 ## 2. 环境要求
 
@@ -76,12 +88,21 @@ export FOOD_SEMANTIC_TIMEOUT="8.0"
 
 ## 4. 启动前置条件
 
-运行 Task5 主脚本前，请确保你的底层系统已提供或即将提供以下关键话题：
+`run_task5_all.sh` 的默认行为是先启动底层三套实机脚本，再启动 Task5 主流程：
+
+- `base_4drive/run_task5_base_real.sh`
+- `fastlio_ws/run_task5_fastlio_real.sh`
+- `far_planner/run_task5_farplanner_real.sh`
+- `task5_person_tracker/run_task5_person_follow_voice.sh`
+
+因此在默认模式下，以下关键话题通常由前置模块提供：
 
 - `/cloud_registered`：点云输入（用于生成占据栅格）
 - `/cmd_vel_nav`：导航器速度输出（由仲裁器合成为 `/cmd_vel`）
 
-脚本内部会启动：
+如果你使用 `--person-only`、`--no-fastlio` 或 `--no-far` 裁剪启动组件，则需要外部系统自行提供这些话题。
+
+其中 `task5_person_tracker/run_task5_person_follow_voice.sh` 内部会启动：
 
 - `pointcloud_to_occupancy_grid.py`（发布 `/person_following/occupancy_grid`）
 - `person_goal_publisher.py`
@@ -114,6 +135,12 @@ bash run_task5_all.sh --person-only
 
 # 跳过 FAR，仅启动 base + fastlio + person_tracker
 bash run_task5_all.sh --no-far
+
+# 调整底层模块启动间隔（秒）
+STARTUP_DELAY=3 bash run_task5_all.sh
+
+# 参数透传占位（当前 person_tracker 启动脚本未消费位置参数）
+bash run_task5_all.sh -- --example-arg
 ```
 
 ## 6. 当前默认行为说明
