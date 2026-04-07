@@ -43,7 +43,14 @@ roslaunch smartcar_description smartcar_gazebo.launch
 ## 4. 实机运行
 
 ```bash
-# 1. 设置环境变量 (每次打开新终端都需要执行)
+# 推荐：使用仓库内实机启动脚本
+cd base_4drive
+bash run_task5_base_real.sh
+```
+
+等价手动命令（兼容旧流程）：
+
+```bash
 source devel/setup.bash
 
 # 2. 启动 底盘 launch
