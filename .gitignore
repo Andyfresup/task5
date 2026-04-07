@@ -23,3 +23,6 @@
 
 # VSCode or IDE local caches
 **/.vscode/
+
+# Exclude navigation subproject from top-level tracking
+26-WrightEagle.AI-navigation/

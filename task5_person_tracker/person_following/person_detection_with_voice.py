@@ -414,9 +414,7 @@ def main():
     return_anchor_frame = rospy.get_param("~return_anchor_frame", "map")
     return_anchor_base_frame = rospy.get_param("~return_anchor_base_frame", frame_id)
     return_anchor_lookup_timeout = rospy.get_param("~return_anchor_lookup_timeout", 0.2)
-    default_return_anchor_file = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "return_anchor.json")
-    )
+    default_return_anchor_file = os.path.join("person_following", "return_anchor.json")
     return_anchor_json_file = rospy.get_param("~return_anchor_json_file", default_return_anchor_file)
 
     # Capture target face when pause-state capture request arrives.
@@ -424,15 +422,17 @@ def main():
         "~serving_target_capture_topic",
         "/person_following/serving_target_capture",
     )
-    default_serving_target_face_image_file = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "serving_target_face.jpg")
+    default_serving_target_face_image_file = os.path.join(
+        "person_following",
+        "serving_target_face.jpg",
     )
     serving_target_face_image_file = rospy.get_param(
         "~serving_target_face_image_file",
         default_serving_target_face_image_file,
     )
-    default_serving_target_face_meta_file = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "serving_target_face_meta.json")
+    default_serving_target_face_meta_file = os.path.join(
+        "person_following",
+        "serving_target_face_meta.json",
     )
     serving_target_face_meta_file = rospy.get_param(
         "~serving_target_face_meta_file",
@@ -447,7 +447,7 @@ def main():
 
     customer_data_root = rospy.get_param(
         "~customer_data_root",
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "service_customers")),
+        os.path.join("person_following", "service_customers"),
     )
     active_customer_folder_topic = rospy.get_param(
         "~active_customer_folder_topic",

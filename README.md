@@ -27,17 +27,27 @@
 - ROS Noetic
 - Python 3.8+
 
-安装主项目 Python 依赖：
+在仓库根目录创建并激活虚拟环境：
 
 ```bash
-cd /home/andy/robocup26/task5_person_tracker
+cd robocup26
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+```
+
+在虚拟环境中安装 Task5 根依赖：
+
+```bash
+cd robocup26
 pip install -r requirements.txt
 ```
 
-语音依赖（按需）：
+如果 `pyaudio` 安装失败，请先安装系统依赖后重试：
 
 ```bash
-pip install faster-whisper pyaudio resampy silero-vad
+sudo apt update
+sudo apt install -y portaudio19-dev
 ```
 
 ## 3. 局域网 Ollama 配置（默认语义后端）
@@ -76,9 +86,12 @@ export FOOD_SEMANTIC_TIMEOUT="8.0"
 ## 5. 一键启动
 
 ```bash
-cd /home/andy/robocup26/task5_person_tracker
-bash run_task5_person_follow_voice.sh
+cd robocup26
+source .venv/bin/activate
+bash run_task5_all.sh
 ```
+
+其中根目录脚本 `run_task5_all.sh` 会统一调用 `task5_person_tracker/run_task5_person_follow_voice.sh`，启动当前 Task5 所需脚本集合。
 
 ## 6. 当前默认行为说明
 
@@ -109,7 +122,7 @@ bash run_task5_person_follow_voice.sh
 export FOOD_SEMANTIC_OLLAMA_URL="http://192.168.1.88:11434"
 export FOOD_SEMANTIC_OLLAMA_MODEL="llama3.2:3b"
 export TABLE_FOOD_CHECK_DELAY="1.2"
-bash /home/andy/robocup26/task5_person_tracker/run_task5_person_follow_voice.sh
+bash task5_person_tracker/run_task5_person_follow_voice.sh
 ```
 
 ## 8. 快速排障
