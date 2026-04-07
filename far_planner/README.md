@@ -35,6 +35,13 @@ catkin_make
 
 ```bash
 cd far_planner
+bash run_task5_farplanner_real.sh
+```
+
+等价手动命令（兼容旧流程）：
+
+```bash
+cd far_planner
 source devel/setup.bash
 roslaunch far_planner task5_farplanner.launch
 ```
@@ -42,7 +49,7 @@ roslaunch far_planner task5_farplanner.launch
 可选参数示例：
 
 ```bash
-roslaunch far_planner task5_farplanner.launch far_config:=default odom_topic:=/Odometry scan_cloud_topic:=/cloud_registered terrain_topic:=/terrain_map
+FAR_CONFIG=default ODOM_TOPIC=/Odometry SCAN_CLOUD_TOPIC=/cloud_registered TERRAIN_TOPIC=/terrain_map ENABLE_PERSON_TRACKER_TOPIC_BRIDGE=true bash run_task5_farplanner_real.sh
 ```
 
 默认话题约定：
@@ -59,7 +66,7 @@ person_tracker 兼容桥接（默认开启）：
 如不需要兼容桥接，可关闭：
 
 ```bash
-roslaunch far_planner task5_farplanner.launch enable_person_tracker_topic_bridge:=false
+ENABLE_PERSON_TRACKER_TOPIC_BRIDGE=false bash run_task5_farplanner_real.sh
 ```
 
 ### 3.2 兼容：分模块启动 (传统方式)
