@@ -1,0 +1,15 @@
+local_costmap:
+  global_frame: odom_fusion
+  robot_base_frame: base_link_fusion
+  update_frequency: 10
+  publish_frequency: 2
+  static_map: false
+  rolling_window: true
+  inflation_radius: 0.5
+  width: 4
+  height: 4
+  resolution: 0.02
+  plugins:
+  - {name: obstacle_layer,  type: "costmap_2d::ObstacleLayer"}
+  # - {name: costmap_prohibition_layer,   type: "costmap_prohibition_layer_namespace::CostmapProhibitionLayer"}
+  - {name: inflation_layer, type: "costmap_2d::InflationLayer"}

@@ -1,0 +1,4 @@
+Constrained Instances: '47', '52/22'
+Constraint Name: Concentric_52_0
+Error Details: Constraint geometry is not supported. Unknown geometry type has been exported.
+---------------------------------------------------------------------------------

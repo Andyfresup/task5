@@ -1,0 +1,55 @@
+<?xml version="1.0"?>  
+<robot name="smartcar" xmlns:xacro="http://ros.org/wiki/xacro">  
+  	<xacro:property name="M_PI" value="3.14159265358"/>  
+  
+  	<!-- Macro for SmartCar body. Including Gazebo extensions, but does not include Kinect -->  
+  	<include filename="$(find smartcar_description)/urdf/xacro/smartcar_sim.xacro"/>
+	<xacro:include filename="$(find smartcar_description)/urdf/xacro/sensors/lidar.xacro" />
+	<xacro:include filename="$(find smartcar_description)/urdf/xacro/sensors/imu.xacro" />
+	<xacro:include filename="$(find smartcar_description)/urdf/xacro/rm_description/urdf/RML63/rml_63.xacro" />
+
+    <!-- Macro for inertia matrix -->
+    <xacro:macro name="cube_inertial_matrix" params="m a b c">
+        <inertial>
+            <mass value="${m}" />
+            <inertia ixx="${m*(b*b+c*c)/12}" ixy="0" ixz="0"
+                iyy="${m*(a*a+c*c)/12}" iyz="0"
+                izz="${m*(a*a+b*b)/12}" />
+        </inertial>
+    </xacro:macro>
+
+    <xacro:macro name="sphere_inertial_matrix" params="m r">
+        <inertial>
+            <mass value="${m}" />
+            <inertia ixx="${m**r*r*2/5}" ixy="0" ixz="0"
+                        iyy="${m**r*r*2/5}" iyz="0"
+                        izz="${m**r*r*2/5}" />
+        </inertial>
+    </xacro:macro>
+
+    <xacro:macro name="cylinder_inertial_matrix" params="m r h">
+        <inertial>
+            <mass value="${m}" />
+            <inertia ixx="${m*(3*r*r+h*h)/12}" ixy = "0" ixz = "0"
+                iyy="${m*(3*r*r+h*h)/12}" iyz = "0"
+                izz="${m*r*r/2}" />
+        </inertial>
+    </xacro:macro>
+
+    <link name="base_footprint">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <geometry>
+                <box size="0.001 0.001 0.001" />
+            </geometry>
+        </visual>
+    </link>
+
+    <joint name="base_footprint_joint" type="fixed">
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <parent link="base_footprint"/>
+        <child link="rml_link_left" />
+    </joint>
+
+    <rml_63 prefix="left"/>
+</robot>

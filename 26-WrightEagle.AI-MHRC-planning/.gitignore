@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+dist/
+*.egg-info/
+config_local.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# configuration files
+config.local.py
+.env
+
+# logs
+*.log
+logs/
+
+# test
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ROS
+build/
+devel/
+install/

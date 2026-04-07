@@ -1,0 +1,20 @@
+<launch>
+    <!-- FAST_LIO + Livox bringup for task5 deployment -->
+    <arg name="livox_bd_list" default="100000000000000"/>
+    <arg name="livox_frame" default="livox_frame"/>
+    <arg name="fastlio_rviz" default="false"/>
+
+    <!-- Livox driver publishes /livox/lidar and /livox/imu -->
+    <include file="$(find livox_ros_driver)/launch/livox_lidar_msg.launch">
+        <arg name="bd_list" value="$(arg livox_bd_list)"/>
+        <arg name="msg_frame_id" value="$(arg livox_frame)"/>
+        <arg name="rviz_enable" value="false"/>
+        <arg name="rosbag_enable" value="false"/>
+        <arg name="xfer_format" value="1"/>
+    </include>
+
+    <!-- FAST_LIO publishes map->body, /Odometry, /cloud_registered -->
+    <include file="$(find fast_lio)/launch/mapping_avia.launch">
+        <arg name="rviz" value="$(arg fastlio_rviz)"/>
+    </include>
+</launch>

@@ -1,0 +1,37 @@
+# 音频处理相关
+pyaudio>=0.2.11
+sounddevice>=0.4.6
+
+# 数值计算和信号处理
+numpy>=1.21.0
+resampy>=0.2.2
+torchaudio>=0.10.0
+torch>=1.10.0
+
+# 语音识别相关
+faster-whisper>=0.9.0
+silero-vad>=4.0
+
+# 说话人识别
+pyannote.audio>=3.0.0
+speechbrain>=0.5.0
+
+# TTS相关
+sherpa-onnx>=1.0.0
+
+# 标准库（无需安装）
+# wave - Python标准库
+# warnings - Python标准库
+# os - Python标准库
+# sys - Python标准库
+# tempfile - Python标准库
+# collections - Python标准库
+
+# 本地模块
+# config.py - 需要您自己创建的配置文件
+
+# 安装说明：
+# 1. pip install -r requirements.txt
+# 2. 创建config.py文件定义WHISPER_SMALL等常量
+# 3. 下载所需的模型文件到指定目录
+# 4. 如需GPU加速，请安装CUDA版本的torch

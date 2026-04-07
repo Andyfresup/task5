@@ -1,0 +1,16 @@
+<launch>
+    <!-- Base-only bringup for task5 deployment -->
+    <arg name="use_sim_time" default="false"/>
+    <arg name="base_serial_dev" default="/dev/ttyUSB0"/>
+    <arg name="base_serial_baud_rate" default="115200"/>
+    <arg name="enable_person_tracker_tf" default="true"/>
+    <arg name="enable_navigation_tf_alias" default="true"/>
+
+    <include file="$(find smartcar_description)/launch/xacro/smartcar_gazebo.launch">
+        <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+        <arg name="base_serial_dev" value="$(arg base_serial_dev)"/>
+        <arg name="base_serial_baud_rate" value="$(arg base_serial_baud_rate)"/>
+        <arg name="enable_person_tracker_tf" value="$(arg enable_person_tracker_tf)"/>
+        <arg name="enable_navigation_tf_alias" value="$(arg enable_navigation_tf_alias)"/>
+    </include>
+</launch>

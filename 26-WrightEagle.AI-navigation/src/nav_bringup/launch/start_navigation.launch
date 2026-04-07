@@ -1,0 +1,19 @@
+<launch>
+  <!-- Arguments -->
+  <arg name="map_file" default="$(find nav_bringup)/maps/match_map.yaml"/>
+  <arg name="open_rviz" default="true"/>
+
+  <!-- TF -->
+  <include file="$(find odom_baselink_tf)/launch/tf.launch"/>
+
+  <!-- Map Server -->
+  <node pkg="map_server" name="map_server" type="map_server" args="$(arg map_file)"/>
+
+  <!-- Move Base -->
+  <include file="$(find nav_bringup)/launch/include/move_base.launch"/>
+
+  <!-- Localization -->
+  <include file="$(find jh_localization)/launch/localization.launch"/>
+
+
+</launch>

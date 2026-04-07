@@ -1,0 +1,25 @@
+# Top-level workspace ignore rules
+
+# Nested repository metadata
+**/.git/
+
+# ROS / catkin build artifacts
+**/build/
+**/devel/
+**/install/
+**/log/
+
+# Python virtual environments and cache
+**/.venv/
+**/venv/
+**/env/
+**/__pycache__/
+**/*.pyc
+
+# Compiled artifacts
+**/*.o
+**/*.so
+**/*.a
+
+# VSCode or IDE local caches
+**/.vscode/

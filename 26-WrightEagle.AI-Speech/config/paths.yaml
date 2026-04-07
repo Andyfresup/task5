@@ -1,0 +1,21 @@
+model_paths:
+  vosk:
+    en: "F:/Download/Appdata/LLM/vosk-model-en-us-0.22"
+    giga_en: "F:/Download/Appdata/LLM/vosk-model-en-us-0.42-gigaspeech"
+    small_en: "F:/Download/Appdata/LLM/vosk-model-small-en-us-0.15"
+    # small_cn: "F:/Download/Appdata/LLM/vosk-model-small-cn-0.22"
+
+  whisper:
+    medium: "F:/Download/Appdata/LLM/faster-whisper-medium.en"
+    large: "F:/Download/Appdata/LLM/faster-whisper-largev3"
+    small: "F:/Download/Appdata/LLM/faster-whisper-small.en"
+    base: "F:/Download/Appdata/LLM/faster-whisper-base.en"
+
+  diarization:
+    community_1: "F:/Download/Appdata/LLM/speaker-diarization-community-1"
+
+data_paths:
+  flac: "F:/学习实践/LLM/code/data_set/test-clean/LibriSpeech/test-clean/61/70968"
+  test:
+    root: "F:/学习实践/LLM/code/data_set/test-clean/LibriSpeech/test-clean/61/70968"
+    transcript: "F:/学习实践/LLM/code/data_set/test-clean/LibriSpeech/test-clean/61/70968/61-70968.trans.txt"

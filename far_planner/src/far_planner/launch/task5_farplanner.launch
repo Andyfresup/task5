@@ -1,0 +1,33 @@
+<launch>
+    <!-- FAR planner stack bringup for task5 deployment -->
+    <arg name="far_config" default="default"/>
+    <arg name="odom_topic" default="/Odometry"/>
+    <arg name="scan_cloud_topic" default="/cloud_registered"/>
+    <arg name="terrain_topic" default="/terrain_map"/>
+    <arg name="enable_person_tracker_topic_bridge" default="true"/>
+    <arg name="launch_rviz" default="true"/>
+    <arg name="cmd_vel_output_topic" default="/cmd_vel_nav"/>
+
+    <!-- person_tracker odometry naming compatibility -->
+    <node if="$(arg enable_person_tracker_topic_bridge)" pkg="topic_tools" type="relay" name="odometry_to_local_odom_relay" args="/Odometry /local_odom" />
+
+    <!-- person_tracker goal topic compatibility: PoseStamped -> PointStamped -->
+    <node if="$(arg enable_person_tracker_topic_bridge)" pkg="local_planner" type="goal_pose_to_waypoint.py" name="goal_pose_to_waypoint_bridge" output="screen">
+        <param name="goal_topic" value="/move_base_simple/goal"/>
+        <param name="waypoint_topic" value="/way_point"/>
+    </node>
+
+    <include file="$(find terrain_analysis)/launch/terrain_analysis.launch"/>
+    <include file="$(find local_planner)/launch/local_planner.launch">
+        <arg name="cmd_vel_output_topic" value="$(arg cmd_vel_output_topic)"/>
+    </include>
+
+    <include file="$(find far_planner)/launch/far_planner.launch">
+        <arg name="odom_topic" value="$(arg odom_topic)"/>
+        <arg name="scan_cloud_topic" value="$(arg scan_cloud_topic)"/>
+        <arg name="terrain_cloud_topic" value="$(arg terrain_topic)"/>
+        <arg name="terrain_local_topic" value="$(arg terrain_topic)"/>
+        <arg name="config" value="$(arg far_config)"/>
+        <arg name="launch_rviz" value="$(arg launch_rviz)"/>
+    </include>
+</launch>

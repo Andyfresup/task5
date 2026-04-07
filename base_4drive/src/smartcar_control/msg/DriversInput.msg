@@ -1,0 +1,8 @@
+float32 front_left_vel
+float32 front_right_vel
+float32 rear_left_vel
+float32 rear_right_vel
+float32 front_left_angle
+float32 front_right_angle
+float32 rear_left_angle
+float32 rear_right_angle

@@ -1,0 +1,496 @@
+<?xml version="1.0"?>  
+<robot name="smartcar" xmlns:xacro="http://www.ros.org/wiki/xacro">  
+  	<xacro:property name="M_PI" value="3.14159265358"/>  
+  
+  	<!-- Macro for SmartCar body. Including Gazebo extensions, but does not include Kinect -->  
+  	<include filename="$(find smartcar_description)/urdf/xacro/smartcar_sim.xacro"/>
+	<xacro:include filename="$(find smartcar_description)/urdf/xacro/sensors/lidar.xacro" />
+	<xacro:include filename="$(find smartcar_description)/urdf/xacro/sensors/imu.xacro" />
+	<xacro:include filename="$(find smartcar_description)/urdf/xacro/rm_description/urdf/RML63/rml_63.xacro" />
+  
+  	<xacro:macro name="smartcar_body">
+
+		<xacro:property name="wheel_m" value="2.0"/>
+		<xacro:property name="wheel_r" value="0.085"/>
+		<xacro:property name="wheel_h" value="0.07"/>
+
+		<xacro:property name="base_link_H" value="0.042"/>
+		<xacro:property name="base_middle_link_H" value="0.03"/>
+		<xacro:property name="base_top_link_H" value="0.065"/>
+		<xacro:property name="slider_link_H" value="1.031"/>
+
+		<!-- Macro for inertia matrix -->
+		<xacro:macro name="cube_inertial_matrix" params="m a b c">
+			<inertial>
+				<mass value="${m}" />
+				<inertia ixx="${m*(b*b+c*c)/12}" ixy="0" ixz="0"
+					iyy="${m*(a*a+c*c)/12}" iyz="0"
+					izz="${m*(a*a+b*b)/12}" />
+			</inertial>
+		</xacro:macro>
+
+		<xacro:macro name="sphere_inertial_matrix" params="m r">
+			<inertial>
+				<mass value="${m}" />
+				<inertia ixx="${m**r*r*2/5}" ixy="0" ixz="0"
+						 iyy="${m**r*r*2/5}" iyz="0"
+						 izz="${m**r*r*2/5}" />
+			</inertial>
+		</xacro:macro>
+
+		<xacro:macro name="cylinder_inertial_matrix" params="m r h">
+			<inertial>
+				<mass value="${m}" />
+				<inertia ixx="${m*(3*r*r+h*h)/12}" ixy = "0" ixz = "0"
+					iyy="${m*(3*r*r+h*h)/12}" iyz = "0"
+					izz="${m*r*r/2}" />
+			</inertial>
+		</xacro:macro>
+
+		<link name="base_footprint">
+			<visual>
+				<origin xyz="0 0 0" rpy="0 0 0" />
+				<geometry>
+					<box size="0.001 0.001 0.001" />
+				</geometry>
+			</visual>
+		</link>
+
+		<joint name="base_footprint_joint" type="fixed">
+			<origin xyz="0 0 ${0.203 + base_link_H/2}" rpy="0 0 0" />
+			<parent link="base_footprint"/>
+			<child link="base_link" />
+		</joint>
+
+		<link name="base_link">
+			<inertial>
+				<origin xyz="0 0 0"/>
+				<mass value="5.0" />
+				<inertia ixx="${5*(0.50*0.50+0.042*0.042)/12}" ixy="0.0" ixz="0.0" iyy="${5*(0.75*0.75+0.042*0.042)/12}" iyz="0.0" izz="${5*(0.5*0.5+0.75*0.75)/12}"/>
+			</inertial>
+			<visual>
+				<origin xyz="0 0 0" rpy="0 0 0" />
+				<geometry>
+					<box size="0.75 0.50 ${base_link_H}"/>
+				</geometry>
+				<material name="white">
+					<color rgba="1 1 1 1"/>
+				</material>
+			</visual>
+			<collision>
+				<origin xyz="0 0 0" rpy="0 0 0" />
+				<geometry>
+					<box size="0.75 0.50 0.042" />
+				</geometry>
+			</collision>
+		</link>
+
+		<joint name="base_middle_joint" type="fixed">
+			<origin xyz="0 0 ${(base_link_H + base_middle_link_H) / 2}" rpy="0 0 0" />
+			<parent link="base_link"/>
+			<child link="base_middle_link" />
+		</joint>
+
+		<link name="base_middle_link">
+			<xacro:cube_inertial_matrix m="1.0" a="0.52" b="0.50" c="${base_middle_link_H}" />
+			<visual>
+				<origin xyz="0 0 0" rpy="0 0 0" />
+				<geometry>
+					<box size="0.52 0.50 ${base_middle_link_H}"/>
+				</geometry>
+				<material name="white">
+					<color rgba="1 1 1 1"/>
+				</material>
+			</visual>
+			<collision>
+				<origin xyz="0 0 0" rpy="0 0 0" />
+				<geometry>
+					<box size="0.52 0.50 ${base_middle_link_H}" />
+				</geometry>
+			</collision>
+		</link>
+
+		<joint name="base_top_joint" type="fixed">
+			<origin xyz="0 0 ${(base_top_link_H + base_middle_link_H) / 2}" rpy="0 0 0" />
+			<parent link="base_middle_link"/>
+			<child link="base_top_link" />
+		</joint>
+
+		<link name="base_top_link">
+			<xacro:cube_inertial_matrix m="1.0" a="0.75" b="0.50" c="${base_top_link_H}" />
+			<visual>
+				<origin xyz="0 0 0" rpy="0 0 0" />
+				<geometry>
+					<box size="0.75 0.50 ${base_top_link_H}"/>
+				</geometry>
+				<material name="white">
+					<color rgba="1 1 1 1"/>
+				</material>
+			</visual>
+			<collision>
+				<origin xyz="0 0 0" rpy="0 0 0" />
+				<geometry>
+					<box size="0.75 0.50 ${base_top_link_H}" />
+				</geometry>
+			</collision>
+		</link>
+
+		<!-- <joint name="base_column_joint" type="fixed">
+			<axis xyz="1 0 0"/>
+			<origin xyz="0 0 ${(base_top_link_H + slider_link_H) / 2}" rpy="0 0 0" />
+			<parent link="base_top_link"/>
+			<child link="column_link" />
+		</joint>
+
+		<link name="column_link">
+			<xacro:cube_inertial_matrix m="1.0" a="0.3" b="0.2" c="${slider_link_H}" />
+			<visual>
+				<origin xyz="0 0 0" rpy="0 0 0" />
+				<geometry>
+					<box size="0.3 0.2 ${slider_link_H}"/>
+				</geometry>
+				<material name="gray">
+					<color rgba="0.5 0.5 0.5 1"/>
+				</material>
+			</visual>
+			<collision>
+				<origin xyz="0 0 0" rpy="0 0 0" />
+				<geometry>
+					<box size="0.3 0.2 ${slider_link_H}" />
+				</geometry>
+			</collision>
+		</link>
+
+		<joint name="arm_slider_joint" type="prismatic">
+			<axis xyz="0 0 1"/>
+			<origin xyz="0.2 0 0" rpy="0 0 0" />
+			<parent link="column_link"/>
+			<child link="arm_slider_link" />
+			<dynamics damping="0.1"/>
+			<limit effort="100" velocity="0.1" lower="-0.4" upper="0.4" />
+			<joint_properties damping="20.0" friction="100.0"/>
+		</joint>
+
+		<link name="arm_slider_link">
+			<xacro:cube_inertial_matrix m="1.0" a="0.1" b="0.2" c="0.1" />
+			<visual>
+				<origin xyz="0 0 0" rpy="0 0 0" />
+				<geometry>
+					<box size="0.1 0.2 0.1"/>
+				</geometry>
+				<material name="gray">
+					<color rgba="0.5 0.5 0.5 1"/>
+				</material>
+			</visual>
+			<collision>
+				<origin xyz="0 0 0" rpy="0 0 0" />
+				<geometry>
+					<box size="0.1 0.2 0.1" />
+				</geometry>
+			</collision>
+		</link> -->
+
+		<link name="left_front_wheel">
+			<xacro:cylinder_inertial_matrix m="${wheel_m}" r="${wheel_r}" h="${wheel_h}"/>
+			<visual>
+				<origin rpy="0 0 0" xyz="0 0 0"/>
+				<geometry>
+					<cylinder length="${wheel_h}" radius="${wheel_r}"/>
+				</geometry>
+				<material name="black">
+					<color rgba="0 0 0 1"/>
+				</material>
+			</visual>
+			<collision>
+				<origin rpy="0 0 0" xyz="0 0 0"/>
+				<geometry>
+					<cylinder length="${wheel_h}" radius="${wheel_r}"/>
+				</geometry>
+			</collision>
+		</link>
+	<!--
+		<joint name="left_front_wheel_joint" type="continuous">
+			<axis xyz="0 0 1"/>
+			<parent link="base_link"/>
+			<child link="left_front_wheel"/>
+			<origin rpy="${M_PI/2} 0 0" xyz="0.08 0.08 0.025"/>
+			<limit effort="100" velocity="100"/>
+			<joint_properties damping="0.0" friction="0.0"/>
+		</joint>
+	-->
+		<link name="right_front_wheel">
+			<xacro:cylinder_inertial_matrix m="${wheel_m}" r="${wheel_r}" h="${wheel_h}"/>
+			<visual>
+				<origin rpy="0 0 0" xyz="0 0 0"/>
+				<geometry>
+					<cylinder length="${wheel_h}" radius="${wheel_r}"/>
+				</geometry>
+				<material name="black">
+					<color rgba="0 0 0 1"/>
+				</material>
+			</visual>
+			<collision>
+				<origin rpy="0 0 0" xyz="0 0 0"/>
+				<geometry>
+					<cylinder length="${wheel_h}" radius="${wheel_r}"/>
+				</geometry>
+			</collision>
+		</link>
+	<!--
+		<joint name="right_front_wheel_joint" type="continuous">
+			<axis xyz="0 0 1"/>
+			<parent link="base_link"/>
+			<child link="right_front_wheel"/>
+			<origin rpy="${M_PI/2} 0 0" xyz="0.08 -0.08 0.025"/>
+			<limit effort="100" velocity="100"/>
+			<joint_properties damping="0.0" friction="0.0"/>
+		</joint>
+	-->
+		<link name="left_back_wheel">
+			<xacro:cylinder_inertial_matrix m="${wheel_m}" r="${wheel_r}" h="${wheel_h}"/>
+			<visual>
+				<origin rpy="0 0 0" xyz="0 0 0"/>
+				<geometry>
+					<cylinder length="${wheel_h}" radius="${wheel_r}"/>
+				</geometry>
+				<material name="black">
+					<color rgba="0 0 0 1"/>
+				</material>
+			</visual>
+			<collision>
+				<origin rpy="0 0 0" xyz="0 0 0"/>
+				<geometry>
+					<cylinder length="${wheel_h}" radius="${wheel_r}"/>
+				</geometry>
+			</collision>
+		</link>
+
+		<link name="right_back_wheel">
+			<xacro:cylinder_inertial_matrix m="${wheel_m}" r="${wheel_r}" h="${wheel_h}"/>
+			<visual>
+				<origin rpy="0 0 0" xyz="0 0 0"/>
+				<geometry>
+					<cylinder length="${wheel_h}" radius="${wheel_r}"/>
+				</geometry>
+				<material name="black">
+					<color rgba="0 0 0 1"/>
+				</material>
+			</visual>
+			<collision>
+				<origin rpy="0 0 0" xyz="0 0 0"/>
+				<geometry>
+					<cylinder length="${wheel_h}" radius="${wheel_r}"/>
+				</geometry>
+			</collision>
+		</link>
+
+		<link name="left_bridge">
+			<xacro:sphere_inertial_matrix m="1.0" r="0.02"/>
+			<visual>
+				<origin rpy="0 0 0" xyz="0 0 0"/>
+				<geometry>
+					<sphere radius="0.02" />
+				</geometry>
+				<material name="red">
+					<color rgba="1 0 0 1"/>
+				</material>
+			</visual>
+	<!--        <collision>-->
+	<!--        	<origin rpy="0 0 0" xyz="0 0 0"/>-->
+	<!--            <geometry>-->
+	<!--                <sphere radius="0.005" />-->
+	<!--            </geometry>      -->
+	<!--        </collision>-->
+		</link>
+
+		<joint name="left_bridge_to_bridge" type="revolute">
+			<parent link="base_link"/>
+			<child link="left_bridge"/>
+			<origin rpy="0 0 ${M_PI/2}" xyz="0.26 0.175 -0.128"/>
+			<axis xyz="0 0 1" />
+			<dynamics damping="0.1"/>
+			<limit effort="200" velocity="20" lower="-1.5707" upper="1.5707" />
+			<joint_properties damping="20.0" friction="20.0"/>
+		</joint>
+
+		<link name="right_bridge">
+			<xacro:sphere_inertial_matrix m="1.0" r="0.02"/>
+			<visual>
+				<origin rpy="0 0 0" xyz="0 0 0"/>
+				<geometry>
+					<sphere radius="0.02" />
+				</geometry>
+				<material name="red">
+					<color rgba="1 0 0 1"/>
+				</material>
+			</visual>
+	<!--        <collision>-->
+	<!--        	<origin rpy="0 0 0" xyz="0 0 0"/>-->
+	<!--            <geometry>-->
+	<!--                <sphere radius="0.005" />-->
+	<!--            </geometry>-->
+	<!--        </collision> -->
+		</link>
+
+		<joint name="right_bridge_to_bridge" type="revolute">
+			<parent link="base_link"/>
+			<child link="right_bridge"/>
+			<origin rpy="0 0 ${M_PI/2}" xyz="0.26 -0.175 -0.128"/>
+			<axis xyz="0 0 1" />
+			<dynamics damping="0.1"/>
+			<limit effort="200" velocity="20" lower="-1.5707" upper="1.5707" />
+			<joint_properties damping="20.0" friction="20.0"/>
+		</joint>
+
+		<joint name="right_front_wheel_joint" type="continuous">
+			<axis xyz="0 0 1"/>
+			<parent link="right_bridge"/>
+			<child link="right_front_wheel"/>
+			<origin rpy="0 ${M_PI/2} 0" xyz="0 0 0"/>
+			<dynamics damping="0.0"/>
+			<limit effort="100" velocity="100"/>
+			<joint_properties damping="20.0" friction="20.0"/>
+		</joint>
+
+		<joint name="left_front_wheel_joint" type="continuous">
+			<axis xyz="0 0 1"/>
+			<parent link="left_bridge"/>
+			<child link="left_front_wheel"/>
+			<origin rpy="0 ${M_PI/2} 0" xyz="0 -0 0"/>
+			<dynamics damping="0.0"/>
+			<limit effort="100" velocity="100"/>
+			<joint_properties damping="20.0" friction="20.0"/>
+		</joint>
+
+	<!--	<joint name="right_back_wheel_joint" type="continuous">-->
+	<!--		<axis xyz="0 0 1"/>-->
+	<!--		<parent link="base_link"/>-->
+	<!--		<child link="right_back_wheel"/>-->
+	<!--		<origin rpy="0 ${M_PI/2} ${M_PI/2}" xyz="-0.26 -0.175 -0.128"/>-->
+	<!--		<dynamics damping="0.0"/>-->
+	<!--		<limit effort="100" velocity="100"/>-->
+	<!--		<joint_properties damping="0.0" friction="0.0"/>-->
+	<!--	</joint>-->
+
+	<!--	<joint name="left_back_wheel_joint" type="continuous">-->
+	<!--		<axis xyz="0 0 1"/>-->
+	<!--		<parent link="base_link"/>-->
+	<!--		<child link="left_back_wheel"/>-->
+	<!--		<origin rpy="0 ${M_PI/2} ${M_PI/2}" xyz="-0.26 0.175 -0.128"/>-->
+	<!--		<dynamics damping="0.0"/>-->
+	<!--		<limit effort="100" velocity="100"/>-->
+	<!--		<joint_properties damping="0.0" friction="0.0"/>-->
+	<!--	</joint>-->
+
+		<joint name="right_back_wheel_joint" type="continuous">
+			<axis xyz="0 0 1"/>
+			<parent link="right_back_bridge"/>
+			<child link="right_back_wheel"/>
+			<origin rpy="0 ${M_PI/2} 0" xyz="0 0 0"/>
+			<dynamics damping="0.0"/>
+			<limit effort="100" velocity="100"/>
+			<joint_properties damping="20.0" friction="20.0"/>
+		</joint>
+
+		<joint name="left_back_wheel_joint" type="continuous">
+			<axis xyz="0 0 1"/>
+			<parent link="left_back_bridge"/>
+			<child link="left_back_wheel"/>
+			<origin rpy="0 ${M_PI/2} 0" xyz="0 -0 0"/>
+			<dynamics damping="0.0"/>
+			<limit effort="100" velocity="100"/>
+			<joint_properties damping="10.0" friction="10.0"/>
+		</joint>
+
+		<link name="right_back_bridge">
+			<xacro:sphere_inertial_matrix m="1.0" r="0.02"/>
+			<visual>
+				<origin rpy="0 0 0" xyz="0 0 0"/>
+				<geometry>
+					<sphere radius="0.02" />
+				</geometry>
+				<material name="red">
+					<color rgba="1 0 0 1"/>
+				</material>
+			</visual>
+		</link>
+
+		<joint name="right_back_bridge_to_bridge" type="revolute">
+			<parent link="base_link"/>
+			<child link="right_back_bridge"/>
+			<origin rpy="0 0 ${M_PI/2}" xyz="-0.26 -0.175 -0.128"/>
+			<axis xyz="0 0 1" />
+			<dynamics damping="0.1"/>
+			<limit effort="200" velocity="20" lower="-1.5707" upper="1.5707" />
+			<joint_properties damping="10.0" friction="10.0"/>
+		</joint>
+
+		<link name="left_back_bridge">
+			<xacro:sphere_inertial_matrix m="1.0" r="0.02"/>
+			<visual>
+				<origin rpy="0 0 0" xyz="0 0 0"/>
+				<geometry>
+					<sphere radius="0.02" />
+				</geometry>
+				<material name="red">
+					<color rgba="1 0 0 1"/>
+				</material>
+			</visual>
+		</link>
+
+		<joint name="left_back_bridge_to_bridge" type="revolute">
+			<parent link="base_link"/>
+			<child link="left_back_bridge"/>
+			<origin rpy="0 0 ${M_PI/2}" xyz="-0.26 0.175 -0.128"/>
+			<axis xyz="0 0 1" />
+			<dynamics damping="0.1"/>
+			<limit effort="200" velocity="20" lower="-1.5707" upper="1.5707" />
+			<joint_properties damping="10.0" friction="10.0"/>
+		</joint>
+
+
+	<!--	Sensors-->
+		<xacro:lidar prefix="laser_front"/>
+
+		<joint name="lidar_front_joint" type="fixed">
+			<origin xyz="0.326 0 0.031" rpy="0 0 0" />
+			<parent link="base_link"/>
+			<child link="laser_front_link"/>
+		</joint>
+
+		<xacro:lidar prefix="laser_back"/>
+
+		<joint name="lidar_back_joint" type="fixed">
+			<origin xyz="-0.326 0 0.031" rpy="0 0 ${M_PI}" />
+			<parent link="base_link"/>
+			<child link="laser_back_link"/>
+		</joint>
+
+		<xacro:imu prefix="imu"/>
+
+		<joint name="imu_joint" type="fixed">
+			<origin xyz="0.0 0 0" rpy="0 0 0" />
+			<parent link="base_link"/>
+			<child link="imu_link"/>
+		</joint>
+
+		<!-- <xacro:rml_63 prefix="left"/>
+
+		<joint name="arm_left_joint" type="fixed">
+			<axis xyz="0 1 0"/>
+			<origin xyz="0 0.1 0" rpy="${-M_PI/2} 0 0" />
+			<parent link="arm_slider_link"/>
+			<child link="rml_link_left" />
+		</joint>
+
+		<xacro:rml_63 prefix="right"/>
+
+		<joint name="arm_right_joint" type="fixed">
+			<axis xyz="0 1 0"/>
+			<origin xyz="0 -0.1 0" rpy="${M_PI/2} 0 0" />
+			<parent link="arm_slider_link"/>
+			<child link="rml_link_right" />
+		</joint> -->
+
+	</xacro:macro>
+</robot>

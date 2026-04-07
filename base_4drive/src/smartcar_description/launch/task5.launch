@@ -1,0 +1,47 @@
+<launch>
+    <!-- Aggregated bringup for a monorepo workspace. -->
+    <!-- For split deployment, run task5_base/task5_fastlio/task5_farplanner independently in each repo. -->
+    <arg name="use_sim_time" default="false"/>
+
+    <!-- Chassis serial -->
+    <arg name="base_serial_dev" default="/dev/ttyUSB0"/>
+    <arg name="base_serial_baud_rate" default="115200"/>
+    <arg name="enable_person_tracker_tf" default="true"/>
+    <arg name="enable_navigation_tf_alias" default="true"/>
+
+    <!-- Livox device list, e.g. 3WEDH7600103381 -->
+    <arg name="livox_bd_list" default="100000000000000"/>
+    <arg name="livox_frame" default="livox_frame"/>
+
+    <!-- Optional RViz switches -->
+    <arg name="fastlio_rviz" default="false"/>
+
+    <!-- FAR planner config file name under far_planner/config -->
+    <arg name="far_config" default="default"/>
+
+    <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+
+    <!-- 1) Base-only launch (from base_4drive) -->
+    <include file="$(find smartcar_description)/launch/task5_base.launch">
+        <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+        <arg name="base_serial_dev" value="$(arg base_serial_dev)"/>
+        <arg name="base_serial_baud_rate" value="$(arg base_serial_baud_rate)"/>
+        <arg name="enable_person_tracker_tf" value="$(arg enable_person_tracker_tf)"/>
+        <arg name="enable_navigation_tf_alias" value="$(arg enable_navigation_tf_alias)"/>
+    </include>
+
+    <!-- 2) FAST_LIO + Livox launch (from fastlio_ws) -->
+    <include file="$(find fast_lio)/launch/task5_fastlio.launch">
+        <arg name="livox_bd_list" value="$(arg livox_bd_list)"/>
+        <arg name="livox_frame" value="$(arg livox_frame)"/>
+        <arg name="fastlio_rviz" value="$(arg fastlio_rviz)"/>
+    </include>
+
+    <!-- 3) FAR planner stack launch (from far_planner) -->
+    <include file="$(find far_planner)/launch/task5_farplanner.launch">
+        <arg name="far_config" value="$(arg far_config)"/>
+        <arg name="odom_topic" value="/Odometry"/>
+        <arg name="scan_cloud_topic" value="/cloud_registered"/>
+        <arg name="terrain_topic" value="/terrain_map"/>
+    </include>
+</launch>

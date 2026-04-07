@@ -1,0 +1,99 @@
+<launch>
+
+    <node name="lifter_node" pkg="lifter" type="action_lifter_server_ros1.py" output="screen">
+        <param name="serial_dev"        type="string"   value="/dev/ttyUSB3" />
+    </node>
+
+    <node name="base_4wheel" pkg="smartcar_control" type="4_drive_control.py" output="screen">
+        <param name="serial_dev"        type="string"   value="/dev/ttyUSB0" />
+        <param name="serial_baud_rate"  type="int"      value="115200" />
+        <param name="serial_timeout"    type="int"      value="100" />
+        <param name="lim_avel_wheel"    type="double"   value="3600.0" />
+        <param name="cmd_vel_timeout"   type="double"   value="1.0" />
+        <param name="disconnected_as_estop"    type="boolean"  value="true" />
+        <param name="update_state_by_imu"      type="boolean"  value="false" />
+        <param name="node_freq"         type="double"   value="15.0" />
+        <param name="dist_wheels"       type="double"   value="0.35" />
+        <param name="diameter_wheel"    type="double"   value="0.17" />
+        <param name="dist_axis"         type="double"   value="0.52" />
+        <param name="acc_vel"           type="double"   value="0.05" />
+        <param name="acc_theta"         type="double"   value="0.1" />
+        <param name="revert_z"          type="boolean"  value="false" />
+        <param name="publish_odom_transform"   type="boolean"  value="true" />
+        <param name="start_enable"      type="boolean"  value="true" />
+    </node>
+    <node name="base_imu_tf" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0  base_footprint imu_link 100"/>
+
+    <node name="xkone_xt1_driver_front" pkg="xkone_xt1_driver_node" type="xkone_xt1_driver_node" output="screen" >
+        <!-- 连接驱动的串口号 -->
+        <param name="usart_port_name" type="string" value="/dev/ttyUSB1"/>
+        <!-- 串口波特率 -->
+        <param name="serial_baud_rate" type="int" value="576000"/>
+        <!-- 设置超时时间 -->
+        <param name="timeout" type="int" value="500"/>
+        <!-- 雷达frame_id -->
+        <param name="frame_id" type="string" value="laser_front_link"/>
+        <!-- 雷达数据发布话题名 -->
+        <param name="scan_topic_name" type="string" value="scan_front"/>
+        <!-- 雷达温度发布话题名 -->
+        <param name="temperature_topic_name" type="string" value="laser_front_temp"/>
+        <!-- 是否改变雷达转速 true为改变 false为不改变-->
+        <param name="change_spin" type="bool" value="true"/>
+        <!-- 雷达目标转速 -->
+        <param name="scan_hz" type="int" value="13"/>
+        <!-- 角度偏移 -->
+        <param name="angle_offset" value="0.0"/>
+        <!-- 激光滤波 -->
+        <param name="mask_angle_min1" value="1.57"/>
+        <param name="mask_angle_min2" value="0.0"/>
+        <param name="mask_angle_max1" value="4.71"/>
+        <param name="mask_angle_max2" value="0.0"/>
+        <param name="dist_min" value="0.0"/>
+        <param name="dist_max" value="20.0"/>
+        <!--防拖尾过滤参数-->
+        <param name="shadows_filter_level" type="int" value="1"/>
+        <!-- shadows_filter_level为-1时启用以下参数 -->
+        <param name="shadows_filter_max_angle" value="175"/>
+        <param name="shadows_filter_min_angle" value="5"/>
+        <param name="shadows_filter_traverse_step" type="int" value="1"/>
+        <param name="shadows_filter_window" type="int" value="3"/>
+    </node>
+    <node name="base_laser_front_tf" pkg="tf" type="static_transform_publisher" args="0.357 0 0 0 0 0  base_footprint laser_front_link 100"/>
+
+    <node name="xkone_xt1_driver_node" pkg="xkone_xt1_driver_node" type="xkone_xt1_driver_node" output="screen" >
+        <!-- 连接驱动的串口号 -->
+        <param name="usart_port_name" type="string" value="/dev/ttyUSB2"/>
+        <!-- 串口波特率 -->
+        <param name="serial_baud_rate" type="int" value="576000"/>
+        <!-- 设置超时时间 -->
+        <param name="timeout" type="int" value="500"/>
+        <!-- 雷达frame_id -->
+        <param name="frame_id" type="string" value="laser_back_link"/>
+        <!-- 雷达数据发布话题名 -->
+        <param name="scan_topic_name" type="string" value="scan_back"/>
+        <!-- 雷达温度发布话题名 -->
+        <param name="temperature_topic_name" type="string" value="laser_back_temp"/>
+        <!-- 是否改变雷达转速 true为改变 false为不改变-->
+        <param name="change_spin" type="bool" value="true"/>
+        <!-- 雷达目标转速 -->
+        <param name="scan_hz" type="int" value="13"/>
+        <!-- 角度偏移 -->
+        <param name="angle_offset" value="0.0"/>
+        <!-- 激光滤波 -->
+        <param name="mask_angle_min1" value="1.57"/>
+        <param name="mask_angle_min2" value="0.0"/>
+        <param name="mask_angle_max1" value="4.71"/>
+        <param name="mask_angle_max2" value="0.0"/>
+        <param name="dist_min" value="0.0"/>
+        <param name="dist_max" value="20.0"/>
+        <!--防拖尾过滤参数-->
+        <param name="shadows_filter_level" type="int" value="1"/>
+        <!-- shadows_filter_level为-1时启用以下参数 -->
+        <param name="shadows_filter_max_angle" value="175"/>
+        <param name="shadows_filter_min_angle" value="5"/>
+        <param name="shadows_filter_traverse_step" type="int" value="1"/>
+        <param name="shadows_filter_window" type="int" value="3"/>
+    </node>
+    <node name="base_laser_back_tf" pkg="tf" type="static_transform_publisher" args="-0.357 0 0  3.1415926 0 0  base_footprint laser_back_link 100"/>
+
+</launch>

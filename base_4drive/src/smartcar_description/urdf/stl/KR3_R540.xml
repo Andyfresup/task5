@@ -1,0 +1,415 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<SimscapeMultibodyImportXML version="2.0" xmlns="urn:mathworks:SimscapeMultibody:import" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<Created by="HP" on="12/26/24||16:11:52" using="Simscape Multibody Link Version 6.0" from="Pro/Engineer Creo 8.0 - 2024103"/>
+<ModelUnits mass="kg" length="mm"/>
+<RootAssembly name="KR3_R540" uid="KR3_R540_asm" version="10903">
+<AssemblyFile name="KR3_R540.asm" type="ProEngineer Assembly"/>
+<InstanceTree>
+<Instance name="ASM0001_SKEL0003" uid="30" entityUid="ASM0001_SKEL0003_prt">
+<Transform>
+<Rotation>1 0 0 0 1 0 0 0 1</Rotation>
+<Translation>0 0 0</Translation>
+</Transform>
+</Instance>
+<Instance name="DZ" uid="25" entityUid="DZ_prt">
+<Transform>
+<Rotation>0 1 0 -1 0 0 0 0 1</Rotation>
+<Translation>0 0 0</Translation>
+</Transform>
+</Instance>
+<Instance name="DZ-1" uid="34" entityUid="DZ-1_prt">
+<Transform>
+<Rotation>0 1 0 -1 0 0 0 -2.3371062030097534e-015 1</Rotation>
+<Translation>0 1.2978777366385928e-014 2.4158453015843406e-013</Translation>
+</Transform>
+</Instance>
+<Instance name="LINK1" uid="36" entityUid="LINK1_prt">
+<Transform>
+<Rotation>0 1 0 -1 0 0 0 0 1</Rotation>
+<Translation>1.0408340855860803e-014 1.6448224318339542e-014 -8.0945934874094333e-014</Translation>
+</Transform>
+</Instance>
+<Instance name="LINK2" uid="38" entityUid="LINK2_prt">
+<Transform>
+<Rotation>-2.1094237467877974e-014 1 3.3140157285060923e-014 -0.87489208010921238 -2.4424906541753444e-015 -0.48431792054617961 -0.48431792054617961 -3.9218628344883655e-014 0.87489208010921238</Rotation>
+<Translation>-1.2345177365167013e-011 164.58752419061636 52.848590773247281</Translation>
+</Transform>
+</Instance>
+<Instance name="LINK3" uid="42" entityUid="LINK3_prt">
+<Transform>
+<Rotation>-1.7763568394002505e-014 1 -5.0404125317982107e-014 0.0079272643685076583 5.0515147620444635e-014 0.99996857874616829 0.99996857874616829 1.7374990335383703e-014 -0.0079272643685077693</Rotation>
+<Translation>0.5000000000404583 -751.06219477080549 557.26856419642399</Translation>
+</Transform>
+</Instance>
+<Instance name="LINK4" uid="47" entityUid="LINK4_prt">
+<Transform>
+<Rotation>2.5868196473766147e-014 -0.99554054312118656 0.094334654300382959 0.0079272643684684119 -0.094331690187264644 -0.99550926198908163 0.99996857874616851 0.00074781574377291737 0.0078919130748481559</Rotation>
+<Translation>-58.459158937736419 496.11383386804192 547.68156886795066</Translation>
+</Transform>
+</Instance>
+<Instance name="LINK-5" uid="52" entityUid="LINK-5_asm" rigid="true">
+<Transform>
+<Rotation>-0.0047333643476936684 -0.99554054312119122 0.09421582809653424 0.057868254947283745 -0.094331690187217765 -0.99385753370177721 0.99831300719328908 0.00074781574364890524 0.058056700218884212</Rotation>
+<Translation>-55.068469456726909 481.2866897067812 516.79064130625306</Translation>
+</Transform>
+<Instance name="BERGE5F4F25F1BC4_4" uid="20" entityUid="BERGE5F4F25F1BC4_4_prt">
+<Transform>
+<Rotation>1 0 0 0 1 0 0 0 1</Rotation>
+<Translation>0 0 0</Translation>
+</Transform>
+</Instance>
+<Instance name="BERGE5F4F25F1BC4_21" uid="22" entityUid="BERGE5F4F25F1BC4_21_prt">
+<Transform>
+<Rotation>1 0 0 0 1 0 0 0 1</Rotation>
+<Translation>0 0 0</Translation>
+</Transform>
+</Instance>
+<Instance name="BERGE5F4F25F1BC4_34" uid="25" entityUid="BERGE5F4F25F1BC4_34_prt">
+<Transform>
+<Rotation>1 0 0 0 1 0 0 0 1</Rotation>
+<Translation>0 0 0</Translation>
+</Transform>
+</Instance>
+</Instance>
+</InstanceTree>
+<Constraints>
+<Rigid name="Rigid_25_0">
+<InstancePath>
+<Uid>30</Uid>
+</InstancePath>
+<InstancePath>
+<Uid>25</Uid>
+</InstancePath>
+</Rigid>
+<Rigid name="Rigid_34_0">
+<InstancePath>
+<Uid>30</Uid>
+</InstancePath>
+<InstancePath>
+<Uid>34</Uid>
+</InstancePath>
+</Rigid>
+<Rigid name="Rigid_34_1">
+<InstancePath>
+<Uid>25</Uid>
+</InstancePath>
+<InstancePath>
+<Uid>34</Uid>
+</InstancePath>
+</Rigid>
+<Concentric name="Concentric_36_0">
+<ConstraintGeometry geomType="cylinder">
+<InstancePath>
+<Uid>34</Uid>
+</InstancePath>
+<Position>0 0 0</Position>
+<Axis>0 0 1</Axis>
+</ConstraintGeometry>
+<ConstraintGeometry geomType="cylinder">
+<InstancePath>
+<Uid>36</Uid>
+</InstancePath>
+<Position>3.4694469519536142e-015 -1.04083408558608e-014 185</Position>
+<Axis>0 0 -1</Axis>
+</ConstraintGeometry>
+</Concentric>
+<Coincident name="Coincident_36_1">
+<ConstraintGeometry geomType="plane">
+<InstancePath>
+<Uid>30</Uid>
+</InstancePath>
+<Position>0 0 185</Position>
+<Axis>0 0 1</Axis>
+</ConstraintGeometry>
+<ConstraintGeometry geomType="plane">
+<InstancePath>
+<Uid>36</Uid>
+</InstancePath>
+<Position>0 0 185</Position>
+<Axis>0 0 1</Axis>
+</ConstraintGeometry>
+</Coincident>
+<Concentric name="Concentric_38_0">
+<ConstraintGeometry geomType="cylinder">
+<InstancePath>
+<Uid>36</Uid>
+</InstancePath>
+<Position>20 -53 345</Position>
+<Axis>0 -1 0</Axis>
+</ConstraintGeometry>
+<ConstraintGeometry geomType="cylinder">
+<InstancePath>
+<Uid>38</Uid>
+</InstancePath>
+<Position>20 45.399999999999999 345</Position>
+<Axis>0 1 0</Axis>
+</ConstraintGeometry>
+</Concentric>
+<Distance name="Distance_38_1">
+<ConstraintGeometry geomType="plane">
+<InstancePath>
+<Uid>36</Uid>
+</InstancePath>
+<Position>0 -54 5</Position>
+<Axis>0 -1 0</Axis>
+</ConstraintGeometry>
+<ConstraintGeometry geomType="plane">
+<InstancePath>
+<Uid>38</Uid>
+</InstancePath>
+<Position>20 -53 385</Position>
+<Axis>0 1 0</Axis>
+</ConstraintGeometry>
+</Distance>
+<Concentric name="Concentric_42_0">
+<ConstraintGeometry geomType="cylinder">
+<InstancePath>
+<Uid>38</Uid>
+</InstancePath>
+<Position>20 -60 605</Position>
+<Axis>0 1 0</Axis>
+</ConstraintGeometry>
+<ConstraintGeometry geomType="cylinder">
+<InstancePath>
+<Uid>42</Uid>
+</InstancePath>
+<Position>20 -60 605</Position>
+<Axis>0 1 0</Axis>
+</ConstraintGeometry>
+</Concentric>
+<Distance name="Distance_42_1">
+<ConstraintGeometry geomType="plane">
+<InstancePath>
+<Uid>38</Uid>
+</InstancePath>
+<Position>2.7755575615628901e-014 -50 -6.9388939039072284e-014</Position>
+<Axis>0 -1 0</Axis>
+</ConstraintGeometry>
+<ConstraintGeometry geomType="plane">
+<InstancePath>
+<Uid>42</Uid>
+</InstancePath>
+<Position>20 -49.5 651.99284167235101</Position>
+<Axis>0 1 0</Axis>
+</ConstraintGeometry>
+</Distance>
+<Concentric name="Concentric_47_0">
+<ConstraintGeometry geomType="cylinder">
+<InstancePath>
+<Uid>42</Uid>
+</InstancePath>
+<Position>154.19999999999999 0 625</Position>
+<Axis>-1 0 0</Axis>
+</ConstraintGeometry>
+<ConstraintGeometry geomType="cylinder">
+<InstancePath>
+<Uid>47</Uid>
+</InstancePath>
+<Position>145.30000000000001 6.7619521093575941e-014 625</Position>
+<Axis>-1 0 0</Axis>
+</ConstraintGeometry>
+</Concentric>
+<Distance name="Distance_47_1">
+<ConstraintGeometry geomType="plane">
+<InstancePath>
+<Uid>42</Uid>
+</InstancePath>
+<Position>143.19999999999999 43 625</Position>
+<Axis>-1 0 0</Axis>
+</ConstraintGeometry>
+<ConstraintGeometry geomType="plane">
+<InstancePath>
+<Uid>47</Uid>
+</InstancePath>
+<Position>136.90000000000001 0 625</Position>
+<Axis>-1 0 0</Axis>
+</ConstraintGeometry>
+</Distance>
+<Concentric name="Concentric_52_0">
+<ConstraintGeometry geomType="Unknown">
+<InstancePath>
+<Uid>47</Uid>
+</InstancePath>
+</ConstraintGeometry>
+<ConstraintGeometry geomType="cylinder">
+<InstancePath>
+<Uid>52</Uid>
+<Uid>22</Uid>
+</InstancePath>
+<Position>280 27.5 625</Position>
+<Axis>0 1 0</Axis>
+</ConstraintGeometry>
+</Concentric>
+<Coincident name="Coincident_52_1">
+<ConstraintGeometry geomType="plane">
+<InstancePath>
+<Uid>47</Uid>
+</InstancePath>
+<Position>280 -41 625</Position>
+<Axis>0 -1 0</Axis>
+</ConstraintGeometry>
+<ConstraintGeometry geomType="plane">
+<InstancePath>
+<Uid>52</Uid>
+<Uid>22</Uid>
+</InstancePath>
+<Position>280 -39 625</Position>
+<Axis>0 -1 0</Axis>
+</ConstraintGeometry>
+</Coincident>
+</Constraints>
+</RootAssembly>
+<Assemblies>
+<Assembly name="LINK-5" uid="LINK-5_asm" version="107">
+<AssemblyFile name="LINK-5.asm" type="ProEngineer Assembly"/>
+</Assembly>
+</Assemblies>
+<Parts>
+<Part name="ASM0001_SKEL0003" uid="ASM0001_SKEL0003_prt" version="6690">
+<PartFile name="ASM0001_SKEL0003.prt" type="ProEngineer Part"/>
+<MassProperties>
+<Mass>0</Mass>
+<CenterOfMass>0 0 0</CenterOfMass>
+<Inertia>0 0 0 0 0 0</Inertia>
+</MassProperties>
+<GeometryFile name="asm0001_skel0003_prt.stl" type="STL"/>
+</Part>
+<Part name="BERGE5F4F25F1BC4_21" uid="BERGE5F4F25F1BC4_21_prt" version="3367">
+<PartFile name="BERGE5F4F25F1BC4_21.prt" type="ProEngineer Part"/>
+<MassProperties>
+<Mass>1.5776822446648044</Mass>
+<CenterOfMass>284.71306025661767 0.21838807885202649 624.99758078586581</CenterOfMass>
+<Inertia>1413.9775367549323 1940.1176202279603 2118.1290412141266 0.12296993610340223 -0.14794372871983796 -16.725902184661379</Inertia>
+</MassProperties>
+<GeometryFile name="berge5f4f25f1bc4_21_prt.stl" type="STL"/>
+<VisualProperties>
+<Ambient r="0.47999999999999998" g="0.47999999999999998" b="0.47999999999999998" a="1"/>
+<Diffuse r="0.72000000000000008" g="0.72000000000000008" b="0.72000000000000008" a="1"/>
+<Specular r="0.59999999999999998" g="0.59999999999999998" b="0.59999999999999998" a="1"/>
+<Emissive r="0" g="0" b="0" a="1"/>
+<Shininess>0.59999999999999998</Shininess>
+</VisualProperties>
+</Part>
+<Part name="BERGE5F4F25F1BC4_34" uid="BERGE5F4F25F1BC4_34_prt" version="778">
+<PartFile name="BERGE5F4F25F1BC4_34.prt" type="ProEngineer Part"/>
+<MassProperties>
+<Mass>0.016156944891731053</Mass>
+<CenterOfMass>351.75006033784194 0 636.33417181505229</CenterOfMass>
+<Inertia>11.907478061818445 8.0197643287644951 4.1300155474061819 0 0.46659250863876878 0</Inertia>
+</MassProperties>
+<GeometryFile name="berge5f4f25f1bc4_34_prt.stl" type="STL"/>
+<VisualProperties>
+<Ambient r="0.35999999999999999" g="0.35999999999999999" b="0.35999999999999999" a="1"/>
+<Diffuse r="0.54000000000000004" g="0.54000000000000004" b="0.54000000000000004" a="1"/>
+<Specular r="0.59999999999999998" g="0.59999999999999998" b="0.59999999999999998" a="1"/>
+<Emissive r="0" g="0" b="0" a="1"/>
+<Shininess>0.59999999999999998</Shininess>
+</VisualProperties>
+</Part>
+<Part name="BERGE5F4F25F1BC4_4" uid="BERGE5F4F25F1BC4_4_prt" version="3071">
+<PartFile name="BERGE5F4F25F1BC4_4.prt" type="ProEngineer Part"/>
+<MassProperties>
+<Mass>0.043183519603191355</Mass>
+<CenterOfMass>347.41277085822526 -0.0055129999858412691 624.99033219851083</CenterOfMass>
+<Inertia>14.903868009639776 7.9899007736139538 7.990094474657492 0 0.00097576220287010074 -0.0011049564822562669</Inertia>
+</MassProperties>
+<GeometryFile name="berge5f4f25f1bc4_4_prt.stl" type="STL"/>
+<VisualProperties>
+<Ambient r="0.23999999999999999" g="0.23999999999999999" b="0.23999999999999999" a="1"/>
+<Diffuse r="0.36000000000000004" g="0.36000000000000004" b="0.36000000000000004" a="1"/>
+<Specular r="0.59999999999999998" g="0.59999999999999998" b="0.59999999999999998" a="1"/>
+<Emissive r="0" g="0" b="0" a="1"/>
+<Shininess>0.59999999999999998</Shininess>
+</VisualProperties>
+</Part>
+<Part name="DZ-1" uid="DZ-1_prt" version="3250">
+<PartFile name="DZ-1.prt" type="ProEngineer Part"/>
+<MassProperties>
+<Mass>17.332977968262831</Mass>
+<CenterOfMass>-29.156129968336327 0 93.452391429070076</CenterOfMass>
+<Inertia>82389.98537151108 119011.62953461231 109999.19545387806 0 2695.7635055545106 14.223051211142115</Inertia>
+</MassProperties>
+<GeometryFile name="dz-1_prt.stl" type="STL"/>
+<VisualProperties>
+<Ambient r="0.23999999999999999" g="0.23999999999999999" b="0.23999999999999999" a="1"/>
+<Diffuse r="0.36000000000000004" g="0.36000000000000004" b="0.36000000000000004" a="1"/>
+<Specular r="0.59999999999999998" g="0.59999999999999998" b="0.59999999999999998" a="1"/>
+<Emissive r="0" g="0" b="0" a="1"/>
+<Shininess>0.59999999999999998</Shininess>
+</VisualProperties>
+</Part>
+<Part name="DZ" uid="DZ_prt" version="659">
+<PartFile name="DZ.prt" type="ProEngineer Part"/>
+<MassProperties>
+<Mass>17.481647948036244</Mass>
+<CenterOfMass>210.16988228582247 -0.0035127433357397563 -9</CenterOfMass>
+<Inertia>525269.65436610556 524660.80316187651 1048986.4485387919 0 0 0</Inertia>
+</MassProperties>
+<GeometryFile name="dz_prt.stl" type="STL"/>
+<VisualProperties>
+<Ambient r="0.56940260929274467" g="0.56940260929274467" b="0.56940260929274467" a="1"/>
+<Diffuse r="0.854103913939117" g="0.854103913939117" b="0.854103913939117" a="1"/>
+<Specular r="0.59999999999999998" g="0.59999999999999998" b="0.59999999999999998" a="1"/>
+<Emissive r="0" g="0" b="0" a="1"/>
+<Shininess>0.59999999999999998</Shininess>
+</VisualProperties>
+</Part>
+<Part name="LINK1" uid="LINK1_prt" version="5564">
+<PartFile name="LINK1.prt" type="ProEngineer Part"/>
+<MassProperties>
+<Mass>9.254950239492624</Mass>
+<CenterOfMass>-3.4773680590452063 1.4694420809681275 253.89872122719629</CenterOfMass>
+<Inertia>56102.696444266832 39722.081047725856 45138.371348076849 -1080.9813809967554 -2114.5952258251255 -207.40084051259237</Inertia>
+</MassProperties>
+<GeometryFile name="link1_prt.stl" type="STL"/>
+<VisualProperties>
+<Ambient r="0.47999999999999998" g="0.47999999999999998" b="0.47999999999999998" a="1"/>
+<Diffuse r="0.72000000000000008" g="0.72000000000000008" b="0.72000000000000008" a="1"/>
+<Specular r="0.59999999999999998" g="0.59999999999999998" b="0.59999999999999998" a="1"/>
+<Emissive r="0" g="0" b="0" a="1"/>
+<Shininess>0.59999999999999998</Shininess>
+</VisualProperties>
+</Part>
+<Part name="LINK2" uid="LINK2_prt" version="8170">
+<PartFile name="LINK2.prt" type="ProEngineer Part"/>
+<MassProperties>
+<Mass>10.552339845993338</Mass>
+<CenterOfMass>4.7833568685907224 -0.92818053027434644 458.25325249721868</CenterOfMass>
+<Inertia>109895.04731466751 89079.530599165824 38731.667030180346 -996.84639434842848 3212.8183911591259 165.20075139152166</Inertia>
+</MassProperties>
+<GeometryFile name="link2_prt.stl" type="STL"/>
+<VisualProperties>
+<Ambient r="0.47999999999999998" g="0.47999999999999998" b="0.47999999999999998" a="1"/>
+<Diffuse r="0.72000000000000008" g="0.72000000000000008" b="0.72000000000000008" a="1"/>
+<Specular r="0.59999999999999998" g="0.59999999999999998" b="0.59999999999999998" a="1"/>
+<Emissive r="0" g="0" b="0" a="1"/>
+<Shininess>0.59999999999999998</Shininess>
+</VisualProperties>
+</Part>
+<Part name="LINK3" uid="LINK3_prt" version="4093">
+<PartFile name="LINK3.prt" type="ProEngineer Part"/>
+<MassProperties>
+<Mass>4.5700171359518338</Mass>
+<CenterOfMass>46.730573712729253 0.23061823060474351 612.86400595799114</CenterOfMass>
+<Inertia>7839.5079692783493 13974.109750326777 13274.279436083538 5.121873052568958 -1459.0526857595687 30.411240889555657</Inertia>
+</MassProperties>
+<GeometryFile name="link3_prt.stl" type="STL"/>
+<VisualProperties>
+<Ambient r="0.47999999999999998" g="0.47999999999999998" b="0.47999999999999998" a="1"/>
+<Diffuse r="0.72000000000000008" g="0.72000000000000008" b="0.72000000000000008" a="1"/>
+<Specular r="0.59999999999999998" g="0.59999999999999998" b="0.59999999999999998" a="1"/>
+<Emissive r="0" g="0" b="0" a="1"/>
+<Shininess>0.59999999999999998</Shininess>
+</VisualProperties>
+</Part>
+<Part name="LINK4" uid="LINK4_prt" version="4147">
+<PartFile name="LINK4.prt" type="ProEngineer Part"/>
+<MassProperties>
+<Mass>2.9427350505998144</Mass>
+<CenterOfMass>203.91228287190853 1.6701213467939096 626.59570750772423</CenterOfMass>
+<Inertia>6138.5974515042717 6887.8405613577488 9749.8239566114753 -136.18423309693981 63.74899781239219 -645.17932525284732</Inertia>
+</MassProperties>
+<GeometryFile name="link4_prt.stl" type="STL"/>
+</Part>
+</Parts>
+</SimscapeMultibodyImportXML>
