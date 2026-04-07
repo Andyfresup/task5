@@ -1,0 +1,63 @@
+DWAPlannerROS:
+  acc_lim_th: 0.7
+  acc_lim_x: 8.0
+  acc_lim_y: 0
+
+  max_vel_x: 0.5
+  min_vel_x: 0.05
+
+  max_vel_y: 0.0
+  min_vel_y: 0.0
+
+  max_vel_theta: 0.5
+  min_vel_theta: 0.15
+
+  max_vel_trans: 0.5
+  min_vel_trans: 0.1
+# Goal Tolerance Parametes
+
+  xy_goal_tolerance: 0.15
+  yaw_goal_tolerance: 0.087 # 0.262
+  latch_xy_goal_tolerance: true
+
+# Forward Simulation Parameters
+  sim_time: 2.0
+  sim_period: 2.0
+  sim_granularity: 0.025
+  vx_samples: 25
+  vy_samples: 0
+  vtheta_samples: 40
+  controller_frequency: 15.0
+
+# Trajectory Scoring Parameters
+  path_distance_bias: 75.0
+  goal_distance_bias: 10.0
+  occdist_scale: 0.01
+  forward_point_distance: 0.325
+  stop_time_buffer: 0.2
+  scaling_speed: 0.25
+  max_scaling_factor: 0.2
+
+# Goal Tolerance Parametes
+#   xy_goal_tolerance: 0.10
+#   yaw_goal_tolerance: 0.5
+#   latch_xy_goal_tolerance: false
+
+# Forward Simulation Parameters
+#   sim_time: 4.0
+#   sim_period: 2.0
+#   sim_granularity: 0.025
+#   vx_samples: 25
+#   vy_samples: 0
+#   vtheta_samples: 40
+#   controller_frequency: 20.0
+
+# # Trajectory Scoring Parameters
+#   path_distance_bias: 50
+#   goal_distance_bias: 20.0
+#   occdist_scale: 0.02
+#   forward_point_distance: 0.325
+#   stop_time_buffer: 0.2
+#   scaling_speed: 0.25
+#   max_scaling_factor: 0.2
+

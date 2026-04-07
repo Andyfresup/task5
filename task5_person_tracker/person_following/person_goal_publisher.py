@@ -102,12 +102,16 @@ class PersonGoalPublisher:
         self.pause_prompt_command = rospy.get_param("~pause_prompt_command", "")
         self.pause_prompt_use_shell = rospy.get_param("~pause_prompt_use_shell", False)
         self.pause_prompt_cooldown = rospy.get_param("~pause_prompt_cooldown", 2.0)
-        default_speech_module_file = os.path.join(
-            "..",
-            "26-WrightEagle.AI-Speech",
-            "src",
-            "tts",
-            "synthesizer.py",
+        default_speech_module_file = os.path.abspath(
+            os.path.join(
+                os.path.dirname(__file__),
+                "..",
+                "..",
+                "26-WrightEagle.AI-Speech",
+                "src",
+                "tts",
+                "synthesizer.py",
+            )
         )
         self.pause_prompt_use_speech_module = rospy.get_param("~pause_prompt_use_speech_module", False)
         self.pause_prompt_speech_module_file = rospy.get_param(
@@ -117,12 +121,16 @@ class PersonGoalPublisher:
         self.pause_prompt_speech_class = rospy.get_param("~pause_prompt_speech_class", "TTS")
 
         # Optional one-shot ASR after pause prompt, reusing AI-Speech ASR module.
-        default_asr_module_file = os.path.join(
-            "..",
-            "26-WrightEagle.AI-Speech",
-            "src",
-            "asr",
-            "vad-whisper.py",
+        default_asr_module_file = os.path.abspath(
+            os.path.join(
+                os.path.dirname(__file__),
+                "..",
+                "..",
+                "26-WrightEagle.AI-Speech",
+                "src",
+                "asr",
+                "vad-whisper.py",
+            )
         )
         self.pause_reply_listen_enabled = rospy.get_param("~pause_reply_listen_enabled", True)
         self.pause_reply_use_speech_module = rospy.get_param("~pause_reply_use_speech_module", True)
@@ -149,7 +157,9 @@ class PersonGoalPublisher:
 
         # Parse recognized reply text for food items and persist to JSON.
         self.food_order_enabled = rospy.get_param("~food_order_enabled", True)
-        default_food_order_json_file = os.path.join("person_following", "food_orders.json")
+        default_food_order_json_file = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "food_orders.json")
+        )
         self.food_order_json_file = rospy.get_param("~food_order_json_file", default_food_order_json_file)
         self.food_order_publish_topic = rospy.get_param(
             "~food_order_publish_topic",
@@ -164,7 +174,9 @@ class PersonGoalPublisher:
             "~return_to_anchor_on_order_confirm",
             True,
         )
-        default_return_anchor_json_file = os.path.join("person_following", "return_anchor.json")
+        default_return_anchor_json_file = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "return_anchor.json")
+        )
         self.return_anchor_json_file = rospy.get_param(
             "~return_anchor_json_file",
             default_return_anchor_json_file,
@@ -197,7 +209,9 @@ class PersonGoalPublisher:
             os.path.join(default_yolo_perception_dir, "detections.json"),
         )
         self.serving_target_enabled = rospy.get_param("~serving_target_enabled", True)
-        default_serving_target_snapshot_file = os.path.join("person_following", "serving_target_snapshot.json")
+        default_serving_target_snapshot_file = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "serving_target_snapshot.json")
+        )
         self.serving_target_snapshot_json_file = rospy.get_param(
             "~serving_target_snapshot_json_file",
             default_serving_target_snapshot_file,
@@ -212,7 +226,7 @@ class PersonGoalPublisher:
         )
         self.customer_data_root = rospy.get_param(
             "~customer_data_root",
-            os.path.join("person_following", "service_customers"),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "service_customers")),
         )
         self.active_customer_folder_topic = rospy.get_param(
             "~active_customer_folder_topic",
@@ -2069,7 +2083,7 @@ class PersonGoalPublisher:
         workdir = str(self.table_food_detect_workdir).strip()
         if workdir:
             return os.path.join(workdir, raw_path)
-        return raw_path
+        return os.path.abspath(raw_path)
 
     def _append_detected_food_name(self, raw_name, detected_set):
         if not isinstance(detected_set, set):
