@@ -48,13 +48,6 @@ source devel/setup.bash
 
 ```bash
 cd fastlio_ws
-bash run_task5_fastlio_real.sh
-```
-
-等价手动命令（兼容旧流程）：
-
-```bash
-cd fastlio_ws
 source devel/setup.bash
 roslaunch fast_lio task5_fastlio.launch
 ```
@@ -68,7 +61,7 @@ roslaunch fast_lio task5_fastlio.launch
 可选参数示例：
 
 ```bash
-LIVOX_BD_LIST=<你的雷达序列号> LIVOX_FRAME=livox_frame FASTLIO_RVIZ=true bash run_task5_fastlio_real.sh
+roslaunch fast_lio task5_fastlio.launch livox_bd_list:=<你的雷达序列号> livox_frame:=livox_frame fastlio_rviz:=true
 ```
 
 说明：

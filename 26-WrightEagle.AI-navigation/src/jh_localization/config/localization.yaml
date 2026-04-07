@@ -1,0 +1,27 @@
+rotation:
+    x: 0
+    y: 0
+    z: 0
+    w: 1
+translation:
+    z: 0
+    x: 0
+    y: 0
+
+opti_counter : 2
+
+planar_thre : 0.65 #0.65
+linear_thre : 0.65 #0.65
+
+dsleafsize : 0.4
+mapdsleafsize : 1
+featureradius : 1.0
+map_inter : 10
+
+imuAccNoise: 7.7554023767314037e-03
+imuGyrNoise: 2.6248612028792424e-04
+imuAccBiasN: 4.2450601547725956e-04
+imuGyrBiasN: 3.4125021757727264e-06
+imuGravity: 9.80511
+
+

@@ -1,0 +1,6 @@
+<launch>
+    <node pkg="tf2_ros" type="static_transform_publisher" name="map_odom_broadcaster" args="0 0 0 0 0 0 /map /odom_fusion" />
+    <node pkg="tf2_ros" type="static_transform_publisher" name="rslidar_baselink_broadcaster" args="0.35 0 -0.8 0 -0.5236 0 /livox_frame /base_link_fusion" />
+    
+    <node pkg="odom_baselink_tf" type="tf_transform" name="odom_baselink_tf" output="screen"/>
+</launch>
