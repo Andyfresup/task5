@@ -102,6 +102,15 @@ class PersonGoalPublisher:
         self.pause_prompt_enabled = rospy.get_param("~pause_prompt_enabled", True)
         self.pause_prompt_text = rospy.get_param("~pause_prompt_text", "What do you want")
         self.pause_prompt_topic = rospy.get_param("~pause_prompt_topic", "")
+        self.pause_prompt_use_mhrc_speak = rospy.get_param("~pause_prompt_use_mhrc_speak", True)
+        self.pause_prompt_mhrc_speak_topic = rospy.get_param(
+            "~pause_prompt_mhrc_speak_topic",
+            "/person_following/mhrc_tts_text",
+        )
+        self.pause_prompt_mhrc_require_subscriber = rospy.get_param(
+            "~pause_prompt_mhrc_require_subscriber",
+            True,
+        )
         self.pause_prompt_command = rospy.get_param("~pause_prompt_command", "")
         self.pause_prompt_use_shell = rospy.get_param("~pause_prompt_use_shell", False)
         self.pause_prompt_cooldown = rospy.get_param("~pause_prompt_cooldown", 2.0)
@@ -400,6 +409,13 @@ class PersonGoalPublisher:
         self.pause_prompt_pub = None
         if self.pause_prompt_topic:
             self.pause_prompt_pub = rospy.Publisher(self.pause_prompt_topic, String, queue_size=1)
+        self.pause_prompt_mhrc_pub = None
+        if self.pause_prompt_use_mhrc_speak and self.pause_prompt_mhrc_speak_topic:
+            self.pause_prompt_mhrc_pub = rospy.Publisher(
+                self.pause_prompt_mhrc_speak_topic,
+                String,
+                queue_size=10,
+            )
         self.pause_reply_pub = None
         if self.pause_reply_topic:
             self.pause_reply_pub = rospy.Publisher(self.pause_reply_topic, String, queue_size=1)
@@ -2891,7 +2907,25 @@ class PersonGoalPublisher:
 
         announced = False
 
-        if self.pause_prompt_use_speech_module:
+        if self.pause_prompt_mhrc_pub is not None:
+            try:
+                if self.pause_prompt_mhrc_require_subscriber:
+                    if self.pause_prompt_mhrc_pub.get_num_connections() <= 0:
+                        rospy.logwarn_throttle(
+                            5.0,
+                            "MHRC speak topic has no subscribers: %s",
+                            self.pause_prompt_mhrc_speak_topic,
+                        )
+                    else:
+                        self.pause_prompt_mhrc_pub.publish(String(data=text))
+                        announced = True
+                else:
+                    self.pause_prompt_mhrc_pub.publish(String(data=text))
+                    announced = True
+            except Exception as exc:
+                rospy.logwarn("Failed to publish MHRC speak prompt: %s", exc)
+
+        if not announced and self.pause_prompt_use_speech_module:
             announced = self._speak_with_pause_speech_module(text)
 
         if not announced and self.pause_prompt_pub is not None:

@@ -454,6 +454,11 @@ bash run_task5_all.sh
 ### 10.2 执行层接入（MHRC -> Task5 ROS）
 
 - 已实现 `Task5ROSAdapter`，将 MHRC 动作映射到 Task5 话题：`navigate` -> `/move_base_simple/goal`，`search` -> `/person_following/search_cmd_vel`，`pick` -> `/person_following/pick_request`，`place` -> `/person_following/place_request`，`speak` -> `/person_following/mhrc_tts_text`（可选走 TTS 模块），`wait` -> 适配器内部等待。
+- 可应用完整 6 动作：`navigate`、`search`、`pick`、`place`、`speak`、`wait`。
+- 动作 schema 定义位于 `26-WrightEagle.AI-MHRC-planning/src/modules/planning/schemas.py`（`NavigateAction` 到 `WaitAction`，以及 `RobotAction` 联合类型）。
+- ROS 执行适配入口位于 `26-WrightEagle.AI-MHRC-planning/src/modules/execution/task5_ros_adapter.py`（对应 `navigate/search/pick/place/speak/wait` 方法实现）。
+- Task5 本地播报入口已优先发布到 `/person_following/mhrc_tts_text`（即 MHRC `speak` 下游通道）；当该话题无订阅者或发布异常时，会自动回退到本地播报路径。
+- `speak` 动作默认发布到 `/person_following/mhrc_tts_text`；若配置 `MHRC_TASK5_TTS_MODULE_FILE` 与 `MHRC_TASK5_TTS_CLASS`，可直接调用本地 TTS 模块。
 - 已加入 ROS master 可达性探测，避免在 `roscore` 不在线时阻塞。
 
 ### 10.3 动作 ACK 与失败回传
