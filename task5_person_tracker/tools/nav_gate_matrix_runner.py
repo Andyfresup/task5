@@ -43,6 +43,7 @@ class CaseResult:
     request_id: str
     observed_success: Optional[bool]
     observed_error_code: str
+    observed_customer_no: str
     note: str
 
 
@@ -186,6 +187,7 @@ class MatrixRunner:
                 request_id="",
                 observed_success=None,
                 observed_error_code="",
+                observed_customer_no="",
                 note=apply_err,
             )
 
@@ -201,11 +203,13 @@ class MatrixRunner:
                 request_id=request_id,
                 observed_success=None,
                 observed_error_code="ack_missing",
+                observed_customer_no="",
                 note="timeout_waiting_ack",
             )
 
         observed_success = bool(ack.get("success", False))
         observed_error_code = str(ack.get("error_code") or "").strip()
+        observed_customer_no = str(ack.get("customer_no") or "").strip()
 
         ok = observed_success == spec.expected_success
         if ok and spec.expected_error_code:
@@ -223,6 +227,7 @@ class MatrixRunner:
             request_id=request_id,
             observed_success=observed_success,
             observed_error_code=observed_error_code,
+            observed_customer_no=observed_customer_no,
             note=note,
         )
 
@@ -392,6 +397,7 @@ def main():
             f"[{result.status}] {result.case_id} "
             f"request_id={result.request_id or '-'} "
             f"success={result.observed_success} error_code={result.observed_error_code} "
+            f"customer_no={result.observed_customer_no or '-'} "
             f"{result.note}"
         )
 

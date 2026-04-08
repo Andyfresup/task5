@@ -564,6 +564,7 @@ class PersonGoalPublisher:
         self.last_gaze_stable_capture_time = rospy.Time(0)
         self.active_customer_folder = ""
         self.active_customer_id = ""
+        self.active_customer_no = ""
         self.active_customer_state = "IDLE"
         self.food_semantic_pipeline = None
         self.food_semantic_load_attempted = False
@@ -619,6 +620,47 @@ class PersonGoalPublisher:
             pass
         self._log_mhrc_stats_if_needed(force=True)
 
+    def _customer_no_from_folder(self, folder):
+        name = os.path.basename(str(folder or "").rstrip("/"))
+        return str(name or "").strip()
+
+    def _refresh_active_customer_no(self):
+        folder_no = self._customer_no_from_folder(self.active_customer_folder)
+        if folder_no:
+            self.active_customer_no = folder_no
+            if not str(self.active_customer_id or "").strip():
+                self.active_customer_id = folder_no
+            return self.active_customer_no
+
+        cid = str(self.active_customer_id or "").strip()
+        self.active_customer_no = cid
+        return self.active_customer_no
+
+    def _set_active_customer_context(self, folder=None, customer_id=None):
+        folder_text = str(folder or "").strip()
+        if folder_text:
+            if not os.path.isdir(folder_text):
+                return False
+            self.active_customer_folder = folder_text
+            folder_no = self._customer_no_from_folder(folder_text)
+            cid = str(customer_id or "").strip()
+            self.active_customer_id = cid or folder_no
+            self._refresh_active_customer_no()
+            return True
+
+        cid = str(customer_id or "").strip()
+        if cid:
+            self.active_customer_id = cid
+            self._refresh_active_customer_no()
+            return True
+
+        return False
+
+    def _clear_active_customer_context(self):
+        self.active_customer_folder = ""
+        self.active_customer_id = ""
+        self.active_customer_no = ""
+
     def active_customer_folder_callback(self, msg):
         folder = str(msg.data).strip()
         if not folder:
@@ -627,17 +669,32 @@ class PersonGoalPublisher:
             rospy.logwarn("Active customer folder does not exist yet: %s", folder)
             return
 
-        self.active_customer_folder = folder
-        self.active_customer_id = os.path.basename(folder.rstrip("/"))
+        self._set_active_customer_context(folder=folder)
         self._load_food_orders_from_json()
         self._set_serving_customer_state("LOCKED", {"source": "active_customer_folder_topic"})
 
     def _set_serving_customer_state(self, state, extra=None):
-        self.active_customer_state = str(state)
+        state_text = str(state or "IDLE").strip().upper() or "IDLE"
+        self.active_customer_state = state_text
+
+        if state_text != "IDLE":
+            self._resolve_active_customer_folder()
+
+        customer_no = ""
+        if state_text != "IDLE":
+            customer_no = self._refresh_active_customer_no()
+            if not customer_no:
+                rospy.logwarn_throttle(
+                    2.0,
+                    "Serving state %s has no customer No. tag yet (waiting active customer folder).",
+                    state_text,
+                )
+
         payload = {
             "timestamp": rospy.Time.now().to_sec(),
             "state": self.active_customer_state,
             "customer_id": self.active_customer_id,
+            "customer_no": customer_no,
             "folder": self.active_customer_folder,
         }
         if isinstance(extra, dict):
@@ -650,6 +707,8 @@ class PersonGoalPublisher:
                 rospy.logwarn("Failed to publish serving customer state: %s", exc)
 
         folder = self.active_customer_folder
+        if state_text != "IDLE" and (not folder or not os.path.isdir(folder)):
+            folder = self._resolve_active_customer_folder()
         if folder and os.path.isdir(folder):
             path = os.path.join(folder, "customer_service_state.json")
             try:
@@ -680,21 +739,19 @@ class PersonGoalPublisher:
 
         clear_customer_context = bool(payload.get("clear_customer_context", False))
         if clear_customer_context:
-            self.active_customer_folder = ""
-            self.active_customer_id = ""
+            self._clear_active_customer_context()
 
         folder = payload.get("active_customer_folder")
         if isinstance(folder, str) and folder.strip():
             folder = folder.strip()
             if os.path.isdir(folder):
-                self.active_customer_folder = folder
-                self.active_customer_id = os.path.basename(folder.rstrip("/"))
+                self._set_active_customer_context(folder=folder)
             else:
                 rospy.logwarn("Debug state override folder does not exist: %s", folder)
 
         customer_id = payload.get("active_customer_id")
         if isinstance(customer_id, str) and customer_id.strip():
-            self.active_customer_id = customer_id.strip()
+            self._set_active_customer_context(customer_id=customer_id.strip())
 
         return_state = payload.get("return_navigation_state")
         if isinstance(return_state, str) and return_state.strip():
@@ -741,6 +798,7 @@ class PersonGoalPublisher:
         recommendation="",
         extra=None,
     ):
+        customer_no = self._refresh_active_customer_no()
         payload = {
             "request_id": str(request_id or ""),
             "success": bool(success),
@@ -748,6 +806,7 @@ class PersonGoalPublisher:
             "message": str(message or ""),
             "recommendation": str(recommendation or ""),
             "timestamp": rospy.Time.now().to_sec(),
+            "customer_no": str(customer_no or ""),
             "active_customer_state": str(self.active_customer_state or "IDLE").upper(),
             "return_navigation_state": str(self.return_navigation_state or "IDLE").upper(),
         }
@@ -1000,7 +1059,19 @@ class PersonGoalPublisher:
             },
         )
 
-    def _select_customer_folder_for_service(self):
+    def _read_customer_service_state(self, folder):
+        state_file = os.path.join(folder, "customer_service_state.json")
+        if not os.path.isfile(state_file):
+            return "IDLE"
+
+        try:
+            with open(state_file, "r", encoding="utf-8") as fp:
+                state_payload = json.load(fp)
+            return str(state_payload.get("state", "IDLE")).upper()
+        except Exception:
+            return "IDLE"
+
+    def _select_customer_folder_for_service(self, exclude_folder="", min_priority=0):
         root = self.customer_data_root
         if not root or not os.path.isdir(root):
             return ""
@@ -1014,6 +1085,13 @@ class PersonGoalPublisher:
             "IDLE": 1,
         }
 
+        exclude_real = ""
+        if exclude_folder:
+            try:
+                exclude_real = os.path.realpath(str(exclude_folder))
+            except Exception:
+                exclude_real = ""
+
         best_folder = ""
         best_score = -1
         best_mtime = -1.0
@@ -1023,17 +1101,19 @@ class PersonGoalPublisher:
             if not os.path.isdir(folder):
                 continue
 
-            state = "IDLE"
-            state_file = os.path.join(folder, "customer_service_state.json")
-            if os.path.isfile(state_file):
+            if exclude_real:
                 try:
-                    with open(state_file, "r", encoding="utf-8") as fp:
-                        state_payload = json.load(fp)
-                    state = str(state_payload.get("state", "IDLE")).upper()
+                    if os.path.realpath(folder) == exclude_real:
+                        continue
                 except Exception:
-                    state = "IDLE"
+                    pass
+
+            state = self._read_customer_service_state(folder)
 
             score = priority.get(state, 0)
+            if score < int(min_priority):
+                continue
+
             mtime = os.path.getmtime(folder)
             if score > best_score or (score == best_score and mtime > best_mtime):
                 best_score = score
@@ -1044,12 +1124,12 @@ class PersonGoalPublisher:
 
     def _resolve_active_customer_folder(self):
         if self.active_customer_folder and os.path.isdir(self.active_customer_folder):
+            self._refresh_active_customer_no()
             return self.active_customer_folder
 
         selected = self._select_customer_folder_for_service()
         if selected:
-            self.active_customer_folder = selected
-            self.active_customer_id = os.path.basename(selected.rstrip("/"))
+            self._set_active_customer_context(folder=selected)
         return self.active_customer_folder
 
     def _resolve_customer_scoped_path(self, default_path):
@@ -1065,6 +1145,21 @@ class PersonGoalPublisher:
     def _resolve_customer_food_order_path(self):
         folder = self._resolve_active_customer_folder()
         if not folder:
+            return ""
+
+        folder_no = self._customer_no_from_folder(folder)
+        active_no = self._refresh_active_customer_no()
+        if active_no and folder_no and active_no != folder_no:
+            rospy.logwarn(
+                "Active customer No. (%s) differs from folder name (%s), forcing folder tag.",
+                active_no,
+                folder_no,
+            )
+            self.active_customer_id = folder_no
+            self.active_customer_no = folder_no
+
+        if not self.active_customer_no:
+            rospy.logwarn("No active customer No. tag, skip resolving food order path.")
             return ""
 
         file_name = os.path.basename(str(self.food_order_json_file).strip())
@@ -1104,6 +1199,45 @@ class PersonGoalPublisher:
             self.food_order_history = []
             self.current_needed_foods = []
             self.current_needed_foods_qty = {}
+
+    def _reset_return_navigation_context(self):
+        self.return_to_anchor_active = False
+        self.return_anchor_goal = None
+        self.return_navigation_state = "IDLE"
+        self.return_table_goal = None
+        self.return_table_plan_attempt_time = rospy.Time(0)
+        self.table_front_arrive_time = rospy.Time(0)
+        self.table_food_check_done = False
+        self.goal_publish_paused = False
+        self.goal_reach_since = None
+        self.paused_person_x = None
+        self.paused_person_y = None
+        self.paused_person_base_x = None
+        self.paused_person_base_y = None
+        self.paused_person_heading = None
+
+    def _complete_current_service_cycle_and_prepare_next(self, reason):
+        current_folder = self._resolve_active_customer_folder()
+        current_no = self._refresh_active_customer_no()
+
+        if current_folder and os.path.isdir(current_folder):
+            self._set_serving_customer_state(
+                "IDLE",
+                {
+                    "reason": str(reason or "service_cycle_completed"),
+                    "completed_customer_no": str(current_no or ""),
+                    "completed_customer_folder": current_folder,
+                },
+            )
+
+        self._reset_return_navigation_context()
+
+        self._clear_active_customer_context()
+        self._clear_food_orders_cache()
+        rospy.loginfo(
+            "Service cycle finished for customer No.=%s; switched to IDLE and waiting for next customer.",
+            str(current_no or "unknown"),
+        )
 
     def _load_customer_person_global_from_folder(self):
         candidates = []
@@ -2642,6 +2776,10 @@ class PersonGoalPublisher:
 
         if self.return_navigation_state == "GO_TO_ANCHOR":
             if not self.return_table_approach_enabled:
+                if dist_to_anchor <= self.return_table_trigger_distance:
+                    self._complete_current_service_cycle_and_prepare_next(
+                        "service_cycle_completed_at_anchor",
+                    )
                 return
             if dist_to_anchor > self.return_table_trigger_distance:
                 return
@@ -2696,6 +2834,12 @@ class PersonGoalPublisher:
         if not self.food_order_enabled or not food_summary:
             return None, False
 
+        self._resolve_active_customer_folder()
+        customer_no = self._refresh_active_customer_no()
+        if not customer_no:
+            rospy.logwarn("No active customer No. tag; skip storing food order JSON.")
+            return None, False
+
         now = rospy.Time.now().to_sec()
         ts = rospy.Time.from_sec(now).to_sec()
         foods_with_qty = []
@@ -2705,6 +2849,8 @@ class PersonGoalPublisher:
         entry = {
             "timestamp": ts,
             "source": "pause_reply",
+            "customer_no": str(customer_no),
+            "customer_folder": str(self.active_customer_folder or ""),
             "recognized_text": source_text,
             "foods": [item["name"] for item in foods_with_qty],
             "foods_with_qty": foods_with_qty,
@@ -2724,6 +2870,8 @@ class PersonGoalPublisher:
                 )
 
             payload = {
+                "customer_no": str(customer_no),
+                "customer_folder": str(self.active_customer_folder or ""),
                 "current_needed_foods": self.current_needed_foods,
                 "current_needed_foods_qty": self.current_needed_foods_qty,
                 "last_entry": entry,
@@ -2965,6 +3113,7 @@ class PersonGoalPublisher:
 
     def _run_table_food_missing_check_cycle(self):
         if not self.table_food_check_enabled:
+            self.table_food_check_done = True
             return
         if self.table_food_check_done:
             return
@@ -3207,6 +3356,14 @@ class PersonGoalPublisher:
         if not text:
             return False
 
+        active_state = str(self.active_customer_state or "IDLE").strip().upper()
+        if active_state not in ("PAUSED_ORDERING", "TRACKING"):
+            rospy.loginfo(
+                "Pause reply ignored in state %s (allowed: PAUSED_ORDERING/TRACKING)",
+                active_state,
+            )
+            return False
+
         self._resolve_active_customer_folder()
 
         rospy.loginfo("Pause reply recognized: %s", text)
@@ -3222,7 +3379,9 @@ class PersonGoalPublisher:
             rospy.loginfo("Extracted requested foods: %s", summary_text)
 
             if stored_to_file and payload is not None:
-                self._set_serving_customer_state("ORDERED")
+                latest_state = str(self.active_customer_state or "IDLE").strip().upper()
+                if latest_state in ("PAUSED_ORDERING", "TRACKING"):
+                    self._set_serving_customer_state("ORDERED")
                 confirm_text = self._build_food_order_confirmation_text(payload)
                 if confirm_text:
                     self._announce_text_prompt(confirm_text, force=True)

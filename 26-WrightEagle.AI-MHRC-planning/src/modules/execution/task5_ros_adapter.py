@@ -249,6 +249,7 @@ class Task5ROSAdapter(RobotInterface):
             "error_code": str(payload.get("error_code") or "").strip(),
             "message": str(payload.get("message") or payload.get("error") or "").strip(),
             "request_id": str(payload.get("request_id") or "").strip(),
+            "customer_no": str(payload.get("customer_no") or "").strip(),
             "active_customer_state": str(payload.get("active_customer_state") or "").strip(),
             "return_navigation_state": str(payload.get("return_navigation_state") or "").strip(),
             "recommendation": str(payload.get("recommendation") or "").strip(),
@@ -283,6 +284,7 @@ class Task5ROSAdapter(RobotInterface):
             "error_code": "ack_timeout",
             "message": "ack_timeout",
             "request_id": request_id,
+            "customer_no": "",
             "raw": "",
         }
 
@@ -366,6 +368,7 @@ class Task5ROSAdapter(RobotInterface):
             self.navigate_request_pub.publish(self._String(data=json.dumps(nav_req, ensure_ascii=False)))
 
             need_ack = bool(self.navigate_ack_required or self.navigate_delegate_to_task5)
+            ack = {}
             if need_ack:
                 ack = self._wait_for_ack("navigate", request_id=request_id, timeout=self.ack_timeout)
                 if not ack.get("success", False):
@@ -380,6 +383,7 @@ class Task5ROSAdapter(RobotInterface):
                             "request_id": request_id,
                             "target": target,
                             "error_code": error_code,
+                            "customer_no": str(ack.get("customer_no") or "").strip(),
                             "active_customer_state": ack.get("active_customer_state", ""),
                             "return_navigation_state": ack.get("return_navigation_state", ""),
                             "recommendation": ack.get("recommendation", ""),
@@ -402,6 +406,7 @@ class Task5ROSAdapter(RobotInterface):
                     "request_id": request_id,
                     "target": target,
                     "delegated": bool(self.navigate_delegate_to_task5),
+                    "customer_no": str(ack.get("customer_no") or "").strip(),
                 },
             )
             return True

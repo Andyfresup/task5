@@ -53,6 +53,7 @@ class FakeAckResponder:
             "success": self.success,
             "error_code": self.error_code,
             "message": self.message or self.error_code,
+            "customer_no": "probe_customer_001",
             "active_customer_state": "IDLE",
             "return_navigation_state": "IDLE",
             "recommendation": "",
@@ -149,9 +150,11 @@ def main():
     result = adapter.get_last_action_result()
 
     observed_error_code = ""
+    observed_customer_no = ""
     if isinstance(result, dict):
         data = result.get("data", {}) if isinstance(result.get("data", {}), dict) else {}
         observed_error_code = str(data.get("error_code") or "").strip()
+        observed_customer_no = str(data.get("customer_no") or "").strip()
 
     print(json.dumps(
         {
@@ -160,6 +163,7 @@ def main():
             "success": success,
             "result": result,
             "observed_error_code": observed_error_code,
+            "observed_customer_no": observed_customer_no,
             "expected_success": expect_success,
             "expected_error_code": expect_error_code,
             "responder_enabled": bool(responder is not None),
