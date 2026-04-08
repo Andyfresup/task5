@@ -56,13 +56,20 @@ class FeedbackCollector:
     
     def should_replan(self, feedback: ExecutionFeedback) -> bool:
         """
-        Determine whether re-planning is needed (Placeholder)
-
-        TODO: Implement re-planning trigger logic
-        - Continuous failure detection
-        - Critical action failure
+        Determine whether replanning should be triggered.
         """
-        return not feedback.success
+        if feedback.success:
+            return False
+
+        action = str(feedback.action_type or "").lower()
+        if action in ("speak", "wait", "unknown"):
+            return False
+
+        error_text = str(feedback.error_message or "").lower()
+        if "unknown action" in error_text:
+            return False
+
+        return True
 
 
 # TODO: Future extensions

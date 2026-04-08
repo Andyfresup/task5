@@ -4,11 +4,14 @@ Robot Controller
 Integrates brain (LLM) and body (Robot), implements complete perception-decision-execution loop
 """
 
+import copy
 from typing import List, Dict, Optional
 from config import Config
 from modules.planning.llm_client import LLMClient
+from modules.planning.planner import Planner
 from modules.planning.prompts import get_system_prompt
 from modules.planning.schemas import RobotDecision, RobotAction
+from modules.execution.feedback import FeedbackCollector
 from modules.execution.mock_robot import MockRobot
 from modules.execution.robot_interface import RobotInterface, RobotState
 
@@ -41,10 +44,18 @@ class RobotController:
             show_thought: Whether to show LLM thinking process (default True)
         """
         # Initialize robot
-        self.robot = robot or MockRobot(name=Config.ROBOT_NAME)
+        if robot is not None:
+            self.robot = robot
+        else:
+            self.robot = self._create_robot_from_config()
 
         # Initialize LLM client
         self.llm_client = llm_client or LLMClient()
+        self.planner = Planner(llm_client=self.llm_client, prompt_mode=prompt_mode)
+        self.feedback_collector = FeedbackCollector()
+
+        self.enable_replan_on_failure = bool(getattr(Config, "ENABLE_REPLAN_ON_FAILURE", True))
+        self.max_replan_attempts = max(0, int(getattr(Config, "MAX_REPLAN_ATTEMPTS", 1)))
 
         # System prompt
         self.system_prompt = get_system_prompt(prompt_mode)
@@ -63,6 +74,19 @@ class RobotController:
         print(f"\n{'='*60}")
         print(f"🚀 Robot controller initialized successfully")
         print(f"{'='*60}")
+
+    def _create_robot_from_config(self) -> RobotInterface:
+        if Config.ENABLE_MOCK:
+            return MockRobot(name=Config.ROBOT_NAME)
+
+        try:
+            from modules.execution.task5_ros_adapter import Task5ROSAdapter
+
+            print("🔌 Using Task5ROSAdapter (real ROS execution)")
+            return Task5ROSAdapter(name=Config.ROBOT_NAME)
+        except Exception as exc:
+            print(f"⚠ Failed to initialize Task5ROSAdapter, fallback to MockRobot: {exc}")
+            return MockRobot(name=Config.ROBOT_NAME)
 
     def process_input(self, user_input: str) -> RobotDecision:
         """
@@ -101,11 +125,14 @@ class RobotController:
 
             # 2. Execute action
             if decision.action:
-                success = self._execute_action(decision.action)
-                if success:
+                action_result = self._execute_action(decision.action)
+                self.feedback_collector.collect(action_result)
+
+                if action_result.get("success", False):
                     self.successful_actions += 1
                 else:
                     self.failed_actions += 1
+                    self._attempt_replan_if_needed(decision, action_result)
 
             # 3. Update conversation history
             self.conversation_history.append({
@@ -136,7 +163,7 @@ class RobotController:
             self.robot.set_state(RobotState.ERROR)
             raise
 
-    def _execute_action(self, action: RobotAction) -> bool:
+    def _execute_action(self, action: RobotAction) -> Dict[str, object]:
         """
         Execute specific action
 
@@ -144,37 +171,112 @@ class RobotController:
             action: Action object
 
         Returns:
-            bool: Whether successful
+            dict: execution result payload
         """
         action_type = action.type
+        result: Dict[str, object] = {
+            "success": False,
+            "action": action_type,
+            "error": "",
+            "data": {},
+        }
 
         try:
             if action_type == "navigate":
-                return self.robot.navigate(action.target)
+                result["success"] = bool(self.robot.navigate(action.target))
+                result["data"] = {"target": action.target}
 
             elif action_type == "search":
-                result = self.robot.search(action.object_name)
-                return result is not None
+                search_result = self.robot.search(action.object_name)
+                result["success"] = search_result is not None
+                result["data"] = {
+                    "object_name": action.object_name,
+                    "result": search_result,
+                }
 
             elif action_type == "pick":
-                return self.robot.pick(action.object_name, action.object_id)
+                result["success"] = bool(self.robot.pick(action.object_name, action.object_id))
+                result["data"] = {
+                    "object_name": action.object_name,
+                    "object_id": action.object_id,
+                }
 
             elif action_type == "place":
-                return self.robot.place(action.location)
+                result["success"] = bool(self.robot.place(action.location))
+                result["data"] = {"location": action.location}
 
             elif action_type == "speak":
-                return self.robot.speak(action.content)
+                result["success"] = bool(self.robot.speak(action.content))
+                result["data"] = {"content": action.content}
 
             elif action_type == "wait":
-                return self.robot.wait(action.reason)
+                result["success"] = bool(self.robot.wait(action.reason))
+                result["data"] = {"reason": action.reason}
 
             else:
                 print(f"⚠ Unknown action type: {action_type}")
-                return False
+                result["error"] = f"Unknown action type: {action_type}"
 
         except Exception as e:
             print(f"❌ Action execution failed: {e}")
-            return False
+            result["error"] = str(e)
+
+        if hasattr(self.robot, "get_last_action_result"):
+            try:
+                robot_result = self.robot.get_last_action_result()
+                if isinstance(robot_result, dict) and robot_result.get("action") == action_type:
+                    merged = copy.deepcopy(result)
+                    merged.update({k: v for k, v in robot_result.items() if k in ("success", "error", "data")})
+                    result = merged
+            except Exception:
+                pass
+
+        if not result.get("success", False) and not result.get("error"):
+            result["error"] = "action_failed"
+
+        return result
+
+    def _attempt_replan_if_needed(self, original_decision: RobotDecision, failed_result: Dict[str, object]):
+        if not self.enable_replan_on_failure or self.max_replan_attempts <= 0:
+            return
+
+        feedback = self.feedback_collector.feedback_history[-1] if self.feedback_collector.feedback_history else None
+        if feedback is None:
+            feedback = self.feedback_collector.collect(failed_result)
+        if not self.feedback_collector.should_replan(feedback):
+            return
+
+        replan_context = {"conversation_history": self.conversation_history}
+        current_decision = original_decision
+
+        for attempt in range(1, self.max_replan_attempts + 1):
+            print(f"🔁 Replan attempt {attempt}/{self.max_replan_attempts}")
+
+            replanned = self.planner.replan(
+                feedback=failed_result,
+                original_decision=current_decision,
+                context=replan_context,
+            )
+
+            if replanned.reply:
+                print(f"💬 Replan reply: {replanned.reply}")
+            if replanned.action:
+                print(f"⚡ Replan action: {replanned.action.type}")
+
+            if not replanned.action:
+                return
+
+            replan_result = self._execute_action(replanned.action)
+            self.feedback_collector.collect(replan_result)
+            if replan_result.get("success", False):
+                self.successful_actions += 1
+                print("✅ Replan action succeeded")
+                return
+
+            self.failed_actions += 1
+            failed_result = replan_result
+            current_decision = replanned
+            print(f"❌ Replan action failed: {replan_result.get('error', 'unknown_error')}")
 
     def interactive_mode(self):
         """
