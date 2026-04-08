@@ -15,6 +15,7 @@ STARTUP_DELAY="${STARTUP_DELAY:-2}"
 ENABLE_FASTLIO=1
 ENABLE_FAR=1
 ENABLE_BASE=1
+PROFILE_MODE="competition"
 
 PIDS=()
 NAMES=()
@@ -26,6 +27,7 @@ Usage:
 
 Options:
   --check        Only run preflight checks, do not launch.
+  --test         Use integration test profile parameters.
   --person-only  Launch only task5_person_tracker.
   --no-fastlio   Do not launch FAST-LIO script.
   --no-far       Do not launch FAR Planner script.
@@ -34,9 +36,41 @@ Options:
 
 Notes:
   - This script is the global Task5 entrypoint at repo root.
+  - Profile: default competition; use --test for integration testing profile.
   - By default it launches base_4drive, FAST-LIO, FAR Planner, then task5_person_tracker.
   - Remaining args are passed through to task5_person_tracker launcher.
 EOF
+}
+
+apply_profile_env() {
+  case "$PROFILE_MODE" in
+    competition)
+      export MHRC_TASK5_NAV_DELEGATE_TO_TASK5=true
+      export MHRC_TASK5_ACK_REQUIRED=true
+      export MHRC_TASK5_ACK_TIMEOUT=6.0
+      export MHRC_NAV_STATE_GATING_ENABLED=true
+      export MHRC_NAV_FORCE_ACCEPT=false
+      export MHRC_NAV_ALLOW_LOCKED=false
+      export MHRC_NAV_REQUEST_TTL=30.0
+      export MHRC_NAV_DEBUG_LOG_GATING_DECISIONS=false
+      export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=false
+      ;;
+    test)
+      export MHRC_TASK5_NAV_DELEGATE_TO_TASK5=true
+      export MHRC_TASK5_ACK_REQUIRED=false
+      export MHRC_TASK5_ACK_TIMEOUT=6.0
+      export MHRC_NAV_STATE_GATING_ENABLED=true
+      export MHRC_NAV_FORCE_ACCEPT=false
+      export MHRC_NAV_ALLOW_LOCKED=false
+      export MHRC_NAV_REQUEST_TTL=30.0
+      export MHRC_NAV_DEBUG_LOG_GATING_DECISIONS=false
+      export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=true
+      ;;
+    *)
+      echo "[ERROR] Unknown profile mode: ${PROFILE_MODE}" >&2
+      exit 1
+      ;;
+  esac
 }
 
 launch_in_background() {
@@ -125,6 +159,10 @@ while [[ $# -gt 0 ]]; do
       CHECK_ONLY=1
       shift
       ;;
+    --test)
+      PROFILE_MODE="test"
+      shift
+      ;;
     --person-only)
       ENABLE_FASTLIO=0
       ENABLE_FAR=0
@@ -171,6 +209,7 @@ fi
 if [[ $CHECK_ONLY -eq 1 ]]; then
   echo "[OK] Preflight checks passed."
   echo "[OK] Enabled components: base=$ENABLE_BASE fastlio=$ENABLE_FASTLIO far=$ENABLE_FAR tracker=1"
+  echo "[OK] Profile mode: ${PROFILE_MODE}"
   exit 0
 fi
 
@@ -184,6 +223,10 @@ fi
 export YOLO_PERCEPTION_DIR="${YOLO_PERCEPTION_DIR:-../26-WrightEagle.AI-YOLO-Perception}"
 export SPEECH_MODULE_FILE="${SPEECH_MODULE_FILE:-../26-WrightEagle.AI-Speech/src/tts/synthesizer.py}"
 export SPEECH_ASR_FILE="${SPEECH_ASR_FILE:-../26-WrightEagle.AI-Speech/src/asr/vad-whisper.py}"
+apply_profile_env
+
+echo "[INFO] Using profile: ${PROFILE_MODE}"
+echo "[INFO] Profile params: ACK_REQUIRED=${MHRC_TASK5_ACK_REQUIRED} ACK_TIMEOUT=${MHRC_TASK5_ACK_TIMEOUT} STATE_OVERRIDE=${MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED}"
 
 trap cleanup EXIT INT TERM
 

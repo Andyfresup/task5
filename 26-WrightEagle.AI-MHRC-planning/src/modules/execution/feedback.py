@@ -65,8 +65,32 @@ class FeedbackCollector:
         if action in ("speak", "wait", "unknown"):
             return False
 
+        payload = feedback.data if isinstance(feedback.data, dict) else {}
+        nested = payload.get("data", {}) if isinstance(payload.get("data", {}), dict) else {}
+        error_code = str(nested.get("error_code") or "").strip().lower()
+
+        if error_code in (
+            "busy_service_workflow",
+            "task5_fsm_active",
+            "invalid_target",
+            "invalid_request",
+            "invalid_frame",
+            "goal_publish_failed",
+            "stale_state",
+        ):
+            return False
+
+        if error_code in (
+            "busy_returning_navigation",
+            "ack_timeout",
+        ):
+            return True
+
         error_text = str(feedback.error_message or "").lower()
         if "unknown action" in error_text:
+            return False
+
+        if "busy_service_workflow" in error_text or "invalid_target" in error_text:
             return False
 
         return True

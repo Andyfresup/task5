@@ -236,9 +236,41 @@ class RobotController:
 
         return result
 
+    def _extract_error_code(self, result: Dict[str, object]) -> str:
+        if not isinstance(result, dict):
+            return ""
+
+        data = result.get("data", {})
+        if not isinstance(data, dict):
+            return ""
+
+        return str(data.get("error_code") or "").strip().lower()
+
     def _attempt_replan_if_needed(self, original_decision: RobotDecision, failed_result: Dict[str, object]):
         if not self.enable_replan_on_failure or self.max_replan_attempts <= 0:
             return
+
+        error_code = self._extract_error_code(failed_result)
+        if error_code in (
+            "busy_service_workflow",
+            "task5_fsm_active",
+            "invalid_target",
+            "invalid_request",
+            "invalid_frame",
+            "stale_state",
+        ):
+            if error_code in ("busy_service_workflow", "task5_fsm_active"):
+                try:
+                    self.robot.speak("Task5 is busy with an active service workflow. Please wait.")
+                except Exception:
+                    pass
+            return
+
+        if error_code in ("busy_returning_navigation", "ack_timeout"):
+            try:
+                self.robot.wait(reason=f"retry_after_{error_code}")
+            except Exception:
+                pass
 
         feedback = self.feedback_collector.feedback_history[-1] if self.feedback_collector.feedback_history else None
         if feedback is None:

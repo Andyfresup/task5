@@ -147,6 +147,8 @@ export MHRC_TASK5_SEARCH_TOPIC=/person_following/search_cmd_vel
 export MHRC_TASK5_SPEAK_TOPIC=/person_following/mhrc_tts_text
 export MHRC_TASK5_PICK_TOPIC=/person_following/pick_request
 export MHRC_TASK5_PLACE_TOPIC=/person_following/place_request
+export MHRC_TASK5_NAV_REQUEST_TOPIC=/person_following/navigate_request
+export MHRC_TASK5_NAV_DELEGATE_TO_TASK5=true
 
 # ACK channels + timeout failure reporting
 export MHRC_TASK5_NAV_ACK_TOPIC=/person_following/navigate_ack
@@ -175,8 +177,10 @@ The current codebase already includes these Task5-facing capabilities:
 
 - A ROS execution adapter (`Task5ROSAdapter`) that maps MHRC actions to Task5 topics.
 - ROS master reachability check before node initialization to avoid long blocking when `roscore` is down.
+- `navigate` request-first delegation: publish to `navigate_request`, wait `navigate_ack`, then decide success/failure.
 - ACK-based action confirmation for `navigate/pick/place` with request ID matching.
 - Timeout failure reporting (`ack_timeout`) for missing ACK responses.
+- Structured `navigate_ack` parsing (`error_code`, `active_customer_state`, `return_navigation_state`, `recommendation`) for upper-layer strategy.
 - Feedback-driven replanning path in `RobotController` + `Planner.replan(...)`.
 
 ### 3.3 Task5 Deployment Checklist (End-to-End)
@@ -206,14 +210,33 @@ export MHRC_TASK5_SEARCH_TOPIC=/person_following/search_cmd_vel
 export MHRC_TASK5_SPEAK_TOPIC=/person_following/mhrc_tts_text
 export MHRC_TASK5_PICK_TOPIC=/person_following/pick_request
 export MHRC_TASK5_PLACE_TOPIC=/person_following/place_request
+export MHRC_TASK5_NAV_REQUEST_TOPIC=/person_following/navigate_request
+export MHRC_TASK5_NAV_DELEGATE_TO_TASK5=true
 
 export MHRC_TASK5_NAV_ACK_TOPIC=/person_following/navigate_ack
 export MHRC_TASK5_PICK_ACK_TOPIC=/person_following/pick_ack
 export MHRC_TASK5_PLACE_ACK_TOPIC=/person_following/place_ack
 export MHRC_TASK5_ACK_TIMEOUT=6.0
+export MHRC_TASK5_ACK_REQUIRED=true
+```
 
-# Set to false during early bring-up if ACK publishers are not ready yet.
+If Task5 state gating is enabled in `task5_person_tracker`, keep these defaults on Task5 side:
+
+```bash
+export NAVIGATE_REQUEST_TOPIC=/person_following/navigate_request
+export NAVIGATE_ACK_TOPIC=/person_following/navigate_ack
+export MHRC_NAV_STATE_GATING_ENABLED=true
+export MHRC_NAV_FORCE_ACCEPT=false
+export MHRC_NAV_ALLOW_LOCKED=false
+export MHRC_NAV_REQUEST_TTL=30.0
+export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=false
+```
+
+Debug-only overrides for integration bring-up:
+
+```bash
 export MHRC_TASK5_ACK_REQUIRED=false
+export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=true
 ```
 
 4. Run MHRC controller:
@@ -223,9 +246,23 @@ cd robocup26/26-WrightEagle.AI-MHRC-planning/src
 python3 main.py
 ```
 
-5. If external devices are not connected, logs about waiting for `/cloud_registered` or missing `/dev/ttyUSB0` are expected and do not indicate adapter failure.
+5. Probe adapter ACK timeout path (integration helper):
 
-6. After hardware is connected, validate input links:
+```bash
+cd robocup26
+python3 26-WrightEagle.AI-MHRC-planning/tests/task5_ack_timeout_probe.py \
+	--mode timeout \
+	--ack-timeout 2.0 \
+	--ack-topic /person_following/navigate_ack_probe
+```
+
+Optional probe modes:
+- `--mode delayed-ack --ack-delay 0.1 --expect-success`
+- `--mode deny-ack --reply-error-code busy_returning_navigation`
+
+6. If external devices are not connected, logs about waiting for `/cloud_registered` or missing `/dev/ttyUSB0` are expected and do not indicate adapter failure.
+
+7. After hardware is connected, validate input links:
 
 ```bash
 source /opt/ros/noetic/setup.bash
