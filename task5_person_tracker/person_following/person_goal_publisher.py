@@ -20,9 +20,12 @@ import re
 import difflib
 import shlex
 import subprocess
+import sys
 import threading
+import time
 import urllib.request
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 import numpy as np
 
@@ -99,6 +102,15 @@ class PersonGoalPublisher:
         self.pause_prompt_enabled = rospy.get_param("~pause_prompt_enabled", True)
         self.pause_prompt_text = rospy.get_param("~pause_prompt_text", "What do you want")
         self.pause_prompt_topic = rospy.get_param("~pause_prompt_topic", "")
+        self.pause_prompt_use_mhrc_speak = rospy.get_param("~pause_prompt_use_mhrc_speak", True)
+        self.pause_prompt_mhrc_speak_topic = rospy.get_param(
+            "~pause_prompt_mhrc_speak_topic",
+            "/person_following/mhrc_tts_text",
+        )
+        self.pause_prompt_mhrc_require_subscriber = rospy.get_param(
+            "~pause_prompt_mhrc_require_subscriber",
+            True,
+        )
         self.pause_prompt_command = rospy.get_param("~pause_prompt_command", "")
         self.pause_prompt_use_shell = rospy.get_param("~pause_prompt_use_shell", False)
         self.pause_prompt_cooldown = rospy.get_param("~pause_prompt_cooldown", 2.0)
@@ -324,6 +336,44 @@ class PersonGoalPublisher:
         self.food_semantic_ollama_url = rospy.get_param("~food_semantic_ollama_url", "")
         self.food_semantic_ollama_model = rospy.get_param("~food_semantic_ollama_model", "llama3.2:1b")
         self.food_semantic_ollama_keepalive = rospy.get_param("~food_semantic_ollama_keepalive", "5m")
+        default_mhrc_src_dir = os.path.abspath(
+            os.path.join(
+                os.path.dirname(__file__),
+                "..",
+                "..",
+                "26-WrightEagle.AI-MHRC-planning",
+                "src",
+            )
+        )
+        self.food_semantic_mhrc_src_dir = rospy.get_param(
+            "~food_semantic_mhrc_src_dir",
+            default_mhrc_src_dir,
+        )
+        self.food_semantic_mhrc_base_url = rospy.get_param(
+            "~food_semantic_mhrc_base_url",
+            "http://localhost:11434/v1",
+        )
+        self.food_semantic_mhrc_api_key = rospy.get_param("~food_semantic_mhrc_api_key", "ollama")
+        self.food_semantic_mhrc_model = rospy.get_param("~food_semantic_mhrc_model", "qwen2.5:3b")
+        self.food_semantic_mhrc_temperature = rospy.get_param("~food_semantic_mhrc_temperature", 0.0)
+        self.food_semantic_mhrc_max_tokens = rospy.get_param("~food_semantic_mhrc_max_tokens", 220)
+        self.food_semantic_mhrc_async_workers = rospy.get_param("~food_semantic_mhrc_async_workers", 1)
+        self.food_semantic_mhrc_timeout = rospy.get_param(
+            "~food_semantic_mhrc_timeout",
+            self.food_semantic_timeout,
+        )
+        self.food_semantic_mhrc_fuse_fail_threshold = rospy.get_param(
+            "~food_semantic_mhrc_fuse_fail_threshold",
+            3,
+        )
+        self.food_semantic_mhrc_fuse_cooldown = rospy.get_param(
+            "~food_semantic_mhrc_fuse_cooldown",
+            15.0,
+        )
+        self.food_semantic_mhrc_stats_log_interval = rospy.get_param(
+            "~food_semantic_mhrc_stats_log_interval",
+            30.0,
+        )
 
         # Candidate sampling and scoring.
         self.min_candidate_radius = rospy.get_param("~min_candidate_radius", 0.9)
@@ -359,6 +409,13 @@ class PersonGoalPublisher:
         self.pause_prompt_pub = None
         if self.pause_prompt_topic:
             self.pause_prompt_pub = rospy.Publisher(self.pause_prompt_topic, String, queue_size=1)
+        self.pause_prompt_mhrc_pub = None
+        if self.pause_prompt_use_mhrc_speak and self.pause_prompt_mhrc_speak_topic:
+            self.pause_prompt_mhrc_pub = rospy.Publisher(
+                self.pause_prompt_mhrc_speak_topic,
+                String,
+                queue_size=10,
+            )
         self.pause_reply_pub = None
         if self.pause_reply_topic:
             self.pause_reply_pub = rospy.Publisher(self.pause_reply_topic, String, queue_size=1)
@@ -391,6 +448,7 @@ class PersonGoalPublisher:
         rospy.Subscriber(self.person_topic, PointStamped, self.person_callback, queue_size=1)
         rospy.Subscriber(self.map_topic, OccupancyGrid, self.map_callback, queue_size=1)
         rospy.Subscriber(self.active_customer_folder_topic, String, self.active_customer_folder_callback, queue_size=1)
+        rospy.on_shutdown(self._on_shutdown)
 
         self.last_person_time = rospy.Time(0)
         self.last_goal_x = None
@@ -438,6 +496,27 @@ class PersonGoalPublisher:
         self.food_semantic_pipeline = None
         self.food_semantic_load_attempted = False
         self.food_semantic_lock = threading.Lock()
+        self.food_semantic_mhrc_client = None
+        self.food_semantic_mhrc_load_attempted = False
+        self.food_semantic_mhrc_lock = threading.Lock()
+        self.food_semantic_mhrc_executor = ThreadPoolExecutor(
+            max_workers=max(1, int(self.food_semantic_mhrc_async_workers))
+        )
+        self.food_semantic_mhrc_stats_lock = threading.Lock()
+        self.food_semantic_mhrc_stats = {
+            "submitted": 0,
+            "success": 0,
+            "failed": 0,
+            "timeout": 0,
+            "fuse_opened": 0,
+            "fuse_blocked": 0,
+            "fallback_used": 0,
+            "latency_ms_sum": 0.0,
+            "latency_ms_max": 0.0,
+        }
+        self.food_semantic_mhrc_fuse_open_until = 0.0
+        self.food_semantic_mhrc_consecutive_failures = 0
+        self.food_semantic_mhrc_last_stats_log = 0.0
         self.table_food_fuzzy_cache = {}
         self.table_food_fuzzy_lock = threading.Lock()
 
@@ -460,6 +539,13 @@ class PersonGoalPublisher:
 
     def map_callback(self, msg):
         self.grid = msg
+
+    def _on_shutdown(self):
+        try:
+            self.food_semantic_mhrc_executor.shutdown(wait=False)
+        except Exception:
+            pass
+        self._log_mhrc_stats_if_needed(force=True)
 
     def active_customer_folder_callback(self, msg):
         folder = str(msg.data).strip()
@@ -1162,6 +1248,8 @@ class PersonGoalPublisher:
             raw = self._run_food_semantic_ollama(prompt, prompt_override=prompt)
         elif backend in ("transformers", "hf", "huggingface"):
             raw = self._run_food_semantic_transformers(prompt, prompt_override=prompt)
+        elif backend in ("mhrc", "mhrc-planning", "mhrc_planning"):
+            raw = self._run_food_semantic_mhrc(prompt, prompt_override=prompt)
         elif backend in ("off", "none", "disabled", "false", "0"):
             raw = ""
         else:
@@ -1422,6 +1510,196 @@ class PersonGoalPublisher:
             rospy.logwarn_throttle(3.0, "Food semantic command failed: %s", exc)
             return ""
 
+    def _update_mhrc_stats(self, key=None, latency_ms=None):
+        with self.food_semantic_mhrc_stats_lock:
+            if key:
+                self.food_semantic_mhrc_stats[key] = self.food_semantic_mhrc_stats.get(key, 0) + 1
+            if latency_ms is not None and latency_ms >= 0.0:
+                self.food_semantic_mhrc_stats["latency_ms_sum"] += float(latency_ms)
+                self.food_semantic_mhrc_stats["latency_ms_max"] = max(
+                    self.food_semantic_mhrc_stats["latency_ms_max"],
+                    float(latency_ms),
+                )
+
+    def _log_mhrc_stats_if_needed(self, force=False):
+        interval = max(1.0, float(self.food_semantic_mhrc_stats_log_interval))
+        now_mono = time.monotonic()
+
+        with self.food_semantic_mhrc_stats_lock:
+            if not force and (now_mono - self.food_semantic_mhrc_last_stats_log) < interval:
+                return
+            self.food_semantic_mhrc_last_stats_log = now_mono
+            stats = dict(self.food_semantic_mhrc_stats)
+            fuse_open_until = float(self.food_semantic_mhrc_fuse_open_until)
+
+        avg_latency = 0.0
+        if stats["success"] > 0:
+            avg_latency = stats["latency_ms_sum"] / float(stats["success"])
+
+        fuse_remaining = max(0.0, fuse_open_until - now_mono)
+        rospy.loginfo(
+            "MHRC semantic stats: submitted=%d success=%d failed=%d timeout=%d "
+            "fuse_blocked=%d fuse_opened=%d fallback=%d avg_latency_ms=%.1f max_latency_ms=%.1f "
+            "fuse_remaining_s=%.1f",
+            int(stats["submitted"]),
+            int(stats["success"]),
+            int(stats["failed"]),
+            int(stats["timeout"]),
+            int(stats["fuse_blocked"]),
+            int(stats["fuse_opened"]),
+            int(stats["fallback_used"]),
+            float(avg_latency),
+            float(stats["latency_ms_max"]),
+            float(fuse_remaining),
+        )
+
+    def _is_mhrc_fuse_open(self):
+        now_mono = time.monotonic()
+        with self.food_semantic_mhrc_stats_lock:
+            return now_mono < float(self.food_semantic_mhrc_fuse_open_until)
+
+    def _record_mhrc_success(self, latency_ms):
+        with self.food_semantic_mhrc_stats_lock:
+            self.food_semantic_mhrc_stats["success"] += 1
+            self.food_semantic_mhrc_stats["latency_ms_sum"] += float(latency_ms)
+            self.food_semantic_mhrc_stats["latency_ms_max"] = max(
+                self.food_semantic_mhrc_stats["latency_ms_max"],
+                float(latency_ms),
+            )
+            self.food_semantic_mhrc_consecutive_failures = 0
+
+    def _record_mhrc_failure(self, is_timeout=False):
+        trip_fuse = False
+        now_mono = time.monotonic()
+        threshold = max(1, int(self.food_semantic_mhrc_fuse_fail_threshold))
+        cooldown = max(1.0, float(self.food_semantic_mhrc_fuse_cooldown))
+
+        with self.food_semantic_mhrc_stats_lock:
+            self.food_semantic_mhrc_stats["failed"] += 1
+            if is_timeout:
+                self.food_semantic_mhrc_stats["timeout"] += 1
+
+            self.food_semantic_mhrc_consecutive_failures += 1
+            if self.food_semantic_mhrc_consecutive_failures >= threshold:
+                self.food_semantic_mhrc_consecutive_failures = 0
+                self.food_semantic_mhrc_fuse_open_until = now_mono + cooldown
+                self.food_semantic_mhrc_stats["fuse_opened"] += 1
+                trip_fuse = True
+
+        if trip_fuse:
+            rospy.logwarn(
+                "MHRC semantic fuse opened for %.1fs after repeated failures",
+                cooldown,
+            )
+
+    def _record_mhrc_fallback(self):
+        self._update_mhrc_stats("fallback_used")
+
+    def _run_food_semantic_mhrc_sync(self, prompt):
+        client = self._load_food_semantic_mhrc_client()
+        if client is None:
+            return ""
+
+        response = client.chat(
+            [{"role": "user", "content": str(prompt)}],
+            temperature=float(self.food_semantic_mhrc_temperature),
+            max_tokens=max(64, int(self.food_semantic_mhrc_max_tokens)),
+        )
+        return str(response or "").strip()
+
+    def _load_food_semantic_mhrc_client(self):
+        with self.food_semantic_mhrc_lock:
+            if self.food_semantic_mhrc_client is not None:
+                return self.food_semantic_mhrc_client
+            if self.food_semantic_mhrc_load_attempted:
+                return None
+
+            self.food_semantic_mhrc_load_attempted = True
+
+            src_dir = os.path.abspath(str(self.food_semantic_mhrc_src_dir).strip())
+            if not src_dir or not os.path.isdir(src_dir):
+                rospy.logwarn("MHRC src dir not found: %s", src_dir)
+                return None
+
+            if src_dir not in sys.path:
+                sys.path.insert(0, src_dir)
+
+            try:
+                from modules.planning.llm_client import LLMClient
+            except Exception as exc:
+                rospy.logwarn("Failed to import MHRC LLMClient: %s", exc)
+                return None
+
+            timeout = max(0.5, float(self.food_semantic_mhrc_timeout))
+            config = {
+                "base_url": str(self.food_semantic_mhrc_base_url).strip(),
+                "api_key": str(self.food_semantic_mhrc_api_key).strip() or "ollama",
+                "model": str(self.food_semantic_mhrc_model).strip() or "qwen2.5:3b",
+                "temperature": float(self.food_semantic_mhrc_temperature),
+                "max_tokens": max(64, int(self.food_semantic_mhrc_max_tokens)),
+                "timeout": timeout,
+            }
+
+            if not config["base_url"]:
+                rospy.logwarn("MHRC backend disabled: empty base_url")
+                return None
+
+            try:
+                self.food_semantic_mhrc_client = LLMClient(config=config)
+                rospy.loginfo(
+                    "Food semantic MHRC backend ready: model=%s base_url=%s",
+                    config["model"],
+                    config["base_url"],
+                )
+                return self.food_semantic_mhrc_client
+            except Exception as exc:
+                rospy.logwarn("Failed to initialize MHRC LLMClient: %s", exc)
+                return None
+
+    def _run_food_semantic_mhrc(self, text, prompt_override=None):
+        prompt = prompt_override if prompt_override is not None else self._build_food_semantic_prompt(text)
+        if not prompt:
+            return ""
+
+        self._update_mhrc_stats("submitted")
+
+        if self._is_mhrc_fuse_open():
+            self._update_mhrc_stats("fuse_blocked")
+            self._record_mhrc_fallback()
+            rospy.logwarn_throttle(5.0, "MHRC semantic request blocked: fuse is open")
+            self._log_mhrc_stats_if_needed()
+            return ""
+
+        timeout = max(0.5, float(self.food_semantic_mhrc_timeout))
+        start = time.monotonic()
+        future = self.food_semantic_mhrc_executor.submit(self._run_food_semantic_mhrc_sync, prompt)
+
+        try:
+            raw = future.result(timeout=timeout)
+            latency_ms = (time.monotonic() - start) * 1000.0
+            if raw:
+                self._record_mhrc_success(latency_ms)
+                self._log_mhrc_stats_if_needed()
+                return raw
+
+            self._record_mhrc_failure(is_timeout=False)
+            self._record_mhrc_fallback()
+            self._log_mhrc_stats_if_needed()
+            return ""
+        except FuturesTimeoutError:
+            future.cancel()
+            self._record_mhrc_failure(is_timeout=True)
+            self._record_mhrc_fallback()
+            rospy.logwarn_throttle(3.0, "Food semantic MHRC request timed out (%.1fs)", timeout)
+            self._log_mhrc_stats_if_needed()
+            return ""
+        except Exception as exc:
+            self._record_mhrc_failure(is_timeout=False)
+            self._record_mhrc_fallback()
+            rospy.logwarn_throttle(3.0, "Food semantic MHRC request failed: %s", exc)
+            self._log_mhrc_stats_if_needed()
+            return ""
+
     def _load_food_semantic_pipeline(self):
         with self.food_semantic_lock:
             if self.food_semantic_pipeline is not None:
@@ -1538,6 +1816,8 @@ class PersonGoalPublisher:
             raw = self._run_food_semantic_command(text)
         elif backend in ("ollama", "http", "remote"):
             raw = self._run_food_semantic_ollama(text)
+        elif backend in ("mhrc", "mhrc-planning", "mhrc_planning"):
+            raw = self._run_food_semantic_mhrc(text)
         elif backend in ("transformers", "hf", "huggingface"):
             raw = self._run_food_semantic_transformers(text)
         else:
@@ -2627,7 +2907,25 @@ class PersonGoalPublisher:
 
         announced = False
 
-        if self.pause_prompt_use_speech_module:
+        if self.pause_prompt_mhrc_pub is not None:
+            try:
+                if self.pause_prompt_mhrc_require_subscriber:
+                    if self.pause_prompt_mhrc_pub.get_num_connections() <= 0:
+                        rospy.logwarn_throttle(
+                            5.0,
+                            "MHRC speak topic has no subscribers: %s",
+                            self.pause_prompt_mhrc_speak_topic,
+                        )
+                    else:
+                        self.pause_prompt_mhrc_pub.publish(String(data=text))
+                        announced = True
+                else:
+                    self.pause_prompt_mhrc_pub.publish(String(data=text))
+                    announced = True
+            except Exception as exc:
+                rospy.logwarn("Failed to publish MHRC speak prompt: %s", exc)
+
+        if not announced and self.pause_prompt_use_speech_module:
             announced = self._speak_with_pause_speech_module(text)
 
         if not announced and self.pause_prompt_pub is not None:

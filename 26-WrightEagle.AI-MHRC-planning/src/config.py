@@ -50,6 +50,8 @@ class Config:
     # ==================== Robot Configuration ====================
     ROBOT_NAME = "LARA"
     ENABLE_MOCK = True  # True=Mock mode, False=Real ROS
+    ENABLE_REPLAN_ON_FAILURE = True
+    MAX_REPLAN_ATTEMPTS = 1
 
     # ==================== Logging Configuration ====================
     LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR
