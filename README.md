@@ -18,6 +18,63 @@
 
 说明：三个独立实机脚本 `fastlio_ws/run_task5_fastlio_real.sh`、`far_planner/run_task5_farplanner_real.sh`、`base_4drive/run_task5_base_real.sh` 不包含虚拟环境激活逻辑，仅依赖各自 ROS 工作区的 `devel/setup.bash`。
 
+## 0. 新人快速入口（简版）
+
+只看这一段也可以跑通基础链路。
+
+1. 首次安装依赖（一次性）：
+
+```bash
+cd robocup26
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install -r task5_person_tracker/requirements.txt
+pip install -r 26-WrightEagle.AI-MHRC-planning/requirements.txt
+pip install pyrealsense2
+```
+
+2. 启动 ROS 主站：
+
+```bash
+source /opt/ros/noetic/setup.bash
+roscore
+```
+
+3. 新终端做预检查：
+
+```bash
+cd robocup26
+source .venv/bin/activate
+bash run_task5_all.sh --check
+```
+
+4. 需要 MHRC 语义时，先设置：
+
+```bash
+export FOOD_SEMANTIC_BACKEND=mhrc
+export FOOD_SEMANTIC_MHRC_BASE_URL=http://127.0.0.1:11434/v1
+export FOOD_SEMANTIC_MHRC_MODEL=qwen2.5:3b
+export FOOD_SEMANTIC_MHRC_API_KEY=ollama
+```
+
+5. 无外设联调用（允许无输入）：
+
+```bash
+bash run_task5_all.sh --person-only
+```
+
+6. 实机闭环运行（外设接入后）：
+
+```bash
+rostopic hz /cloud_registered
+ls -l /dev/ttyUSB0
+bash run_task5_all.sh
+```
+
+说明：未接 RealSense 或底盘串口时，出现等待 `/cloud_registered`、缺少 `/dev/ttyUSB0` 的日志是预期现象。
+
 ## 1. 目录概览
 
 根目录包含多个子工程，Task5 运行主要依赖：
