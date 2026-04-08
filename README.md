@@ -93,6 +93,7 @@ bash run_task5_all.sh
 
 - `run_task5_all.sh`：Task5 全局入口脚本
 - `requirements.txt`：根级 Python 依赖清单
+- `MHRC_TASK5_OPTIONAL_MODE_PLAN.md`：MHRC 可切换非默认点单模式迁移计划（默认仍为原 Task5 状态机）
 
 ## 2. 环境要求
 

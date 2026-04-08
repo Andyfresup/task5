@@ -55,6 +55,14 @@ LLM/
 
 ---
 
+## Text Input Pipeline
+
+For the end-to-end MHRC text handling chain (CLI/ROS text -> LLM decision -> action execution -> feedback/replan), see:
+
+- [TEXT_INPUT_PIPELINE.md](TEXT_INPUT_PIPELINE.md)
+
+---
+
 ## Quick Start
 
 ### 1. Environment Setup

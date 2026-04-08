@@ -497,6 +497,7 @@ def main():
     return_anchor_trigger_track_id = None
     active_customer_folder = ""
     active_customer_id = ""
+    active_customer_no = ""
     serving_customer_state = "IDLE"
     first_lock_face_saved = False
     serving_target_capture_pending = False
@@ -578,12 +579,22 @@ def main():
 
     def _publish_serving_customer_state(state, extra=None):
         nonlocal serving_customer_state
+        nonlocal active_customer_no
         serving_customer_state = str(state)
+
+        folder_no = ""
+        if active_customer_folder and os.path.isdir(active_customer_folder):
+            folder_no = os.path.basename(active_customer_folder.rstrip("/"))
+        if folder_no:
+            active_customer_no = folder_no
+        elif active_customer_id and not active_customer_no:
+            active_customer_no = str(active_customer_id)
 
         payload = {
             "timestamp": rospy.Time.now().to_sec(),
             "state": serving_customer_state,
             "customer_id": active_customer_id,
+            "customer_no": active_customer_no,
             "folder": active_customer_folder,
         }
         if isinstance(extra, dict):
@@ -607,6 +618,7 @@ def main():
     def _ensure_customer_folder(reason, track_id):
         nonlocal active_customer_folder
         nonlocal active_customer_id
+        nonlocal active_customer_no
 
         if active_customer_folder and os.path.isdir(active_customer_folder):
             return active_customer_folder
@@ -622,10 +634,12 @@ def main():
 
         active_customer_folder = folder
         active_customer_id = customer_id
+        active_customer_no = os.path.basename(folder.rstrip("/"))
 
         profile = {
             "timestamp": rospy.Time.now().to_sec(),
             "customer_id": active_customer_id,
+            "customer_no": active_customer_no,
             "trigger": reason,
             "track_id": int(track_id) if track_id is not None else None,
             "folder": active_customer_folder,
@@ -773,6 +787,7 @@ def main():
         nonlocal serving_target_capture_time
         nonlocal active_customer_folder
         nonlocal active_customer_id
+        nonlocal active_customer_no
 
         raw = str(msg.data).strip()
         if not raw:
@@ -806,10 +821,13 @@ def main():
             if folder and os.path.isdir(folder):
                 active_customer_folder = folder
                 active_customer_id = os.path.basename(folder.rstrip("/"))
+                active_customer_no = active_customer_id
 
             cid = str(payload.get("customer_id", "")).strip()
             if cid and not active_customer_id:
                 active_customer_id = cid
+            if not active_customer_no and active_customer_id:
+                active_customer_no = str(active_customer_id)
 
         serving_target_capture_pending = True
         serving_target_capture_request = {
@@ -823,6 +841,67 @@ def main():
         serving_target_capture_time = rospy.Time.now()
         rospy.loginfo("Serving target capture cmd received: reason=%s", reason)
 
+    def _serving_customer_state_sync_callback(msg):
+        nonlocal locked_track_id
+        nonlocal active_customer_folder
+        nonlocal active_customer_id
+        nonlocal active_customer_no
+        nonlocal serving_customer_state
+        nonlocal first_lock_face_saved
+        nonlocal serving_target_capture_pending
+        nonlocal serving_target_capture_request
+        nonlocal serving_target_capture_time
+
+        raw = str(msg.data or "").strip()
+        if not raw:
+            return
+
+        payload = None
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            payload = None
+
+        state = ""
+        if isinstance(payload, dict):
+            state = str(payload.get("state", "")).strip().upper()
+            folder = str(payload.get("folder", "")).strip()
+            cid = str(payload.get("customer_id", "")).strip()
+            cno = str(payload.get("customer_no", "")).strip()
+
+            if folder and os.path.isdir(folder):
+                active_customer_folder = folder
+                active_customer_no = os.path.basename(folder.rstrip("/"))
+                if cid:
+                    active_customer_id = cid
+                elif active_customer_no:
+                    active_customer_id = active_customer_no
+            elif cid and not active_customer_id:
+                active_customer_id = cid
+
+            if cno:
+                active_customer_no = cno
+            elif not active_customer_no and active_customer_id:
+                active_customer_no = str(active_customer_id)
+        else:
+            state = raw.upper()
+
+        if state:
+            serving_customer_state = state
+
+        if state != "IDLE":
+            return
+
+        locked_track_id = None
+        first_lock_face_saved = False
+        serving_target_capture_pending = False
+        serving_target_capture_request = None
+        serving_target_capture_time = None
+        active_customer_folder = ""
+        active_customer_id = ""
+        active_customer_no = ""
+        rospy.loginfo_throttle(2.0, "Serving state switched to IDLE, unlock detector for next customer.")
+
     rospy.Subscriber(
         serving_target_capture_topic,
         PointStamped,
@@ -834,6 +913,12 @@ def main():
         String,
         _serving_target_capture_cmd_callback,
         queue_size=1,
+    )
+    rospy.Subscriber(
+        serving_customer_state_topic,
+        String,
+        _serving_customer_state_sync_callback,
+        queue_size=5,
     )
 
     try:
