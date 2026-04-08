@@ -249,11 +249,38 @@ ls -l /dev/ttyUSB0
 5. If you also enable the MHRC execution adapter (`26-WrightEagle.AI-MHRC-planning`), configure ACK behavior during bring-up:
 
 ```bash
+export MHRC_TASK5_NAV_REQUEST_TOPIC=/person_following/navigate_request
+export MHRC_TASK5_NAV_DELEGATE_TO_TASK5=true
 export MHRC_TASK5_ACK_TIMEOUT=6.0
-export MHRC_TASK5_ACK_REQUIRED=false
+export MHRC_TASK5_ACK_REQUIRED=true
+
+# Task5-side state gating (recommended defaults)
+export NAVIGATE_REQUEST_TOPIC=/person_following/navigate_request
+export NAVIGATE_ACK_TOPIC=/person_following/navigate_ack
+export MHRC_NAV_STATE_GATING_ENABLED=true
+export MHRC_NAV_FORCE_ACCEPT=false
+export MHRC_NAV_ALLOW_LOCKED=false
+export MHRC_NAV_REQUEST_TTL=30.0
+export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=false
+export MHRC_NAV_DEBUG_STATE_OVERRIDE_TOPIC=/person_following/debug_state_override
 ```
 
-Set `MHRC_TASK5_ACK_REQUIRED=true` after `navigate_ack/pick_ack/place_ack` publishers are ready.
+Debug-only overrides for matrix testing:
+
+```bash
+export MHRC_TASK5_ACK_REQUIRED=false
+export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=true
+```
+
+6. Run Task5 navigate gate matrix cases (state injection + boundary checks):
+
+```bash
+cd /home/andy/robocup26
+python3 task5_person_tracker/tools/nav_gate_matrix_runner.py \
+   --suite all \
+   --enable-debug-state \
+   --ack-wait-timeout 3.0
+```
 
 ### 6) PointCloud -> OccupancyGrid Bridge (for FAST-LIO / FAR)
 

@@ -248,6 +248,33 @@ class PersonGoalPublisher:
             "~serving_customer_state_topic",
             "/person_following/serving_customer_state",
         )
+        self.navigate_request_topic = rospy.get_param(
+            "~navigate_request_topic",
+            "/person_following/navigate_request",
+        )
+        self.navigate_ack_topic = rospy.get_param(
+            "~navigate_ack_topic",
+            "/person_following/navigate_ack",
+        )
+        self.mhrc_nav_state_gating_enabled = rospy.get_param(
+            "~mhrc_nav_state_gating_enabled",
+            True,
+        )
+        self.mhrc_nav_force_accept = rospy.get_param("~mhrc_nav_force_accept", False)
+        self.mhrc_nav_allow_locked = rospy.get_param("~mhrc_nav_allow_locked", False)
+        self.mhrc_nav_request_ttl = rospy.get_param("~mhrc_nav_request_ttl", 30.0)
+        self.mhrc_nav_debug_log_gating_decisions = rospy.get_param(
+            "~mhrc_nav_debug_log_gating_decisions",
+            False,
+        )
+        self.mhrc_nav_debug_state_override_enabled = rospy.get_param(
+            "~mhrc_nav_debug_state_override_enabled",
+            False,
+        )
+        self.mhrc_nav_debug_state_override_topic = rospy.get_param(
+            "~mhrc_nav_debug_state_override_topic",
+            "/person_following/debug_state_override",
+        )
         self.gaze_stable_face_capture_enabled = rospy.get_param(
             "~gaze_stable_face_capture_enabled",
             True,
@@ -444,10 +471,25 @@ class PersonGoalPublisher:
                 queue_size=1,
                 latch=True,
             )
+        self.navigate_ack_pub = None
+        if self.navigate_ack_topic:
+            self.navigate_ack_pub = rospy.Publisher(
+                self.navigate_ack_topic,
+                String,
+                queue_size=20,
+            )
 
         rospy.Subscriber(self.person_topic, PointStamped, self.person_callback, queue_size=1)
         rospy.Subscriber(self.map_topic, OccupancyGrid, self.map_callback, queue_size=1)
         rospy.Subscriber(self.active_customer_folder_topic, String, self.active_customer_folder_callback, queue_size=1)
+        rospy.Subscriber(self.navigate_request_topic, String, self.navigate_request_callback, queue_size=20)
+        if self.mhrc_nav_debug_state_override_enabled and self.mhrc_nav_debug_state_override_topic:
+            rospy.Subscriber(
+                self.mhrc_nav_debug_state_override_topic,
+                String,
+                self.debug_state_override_callback,
+                queue_size=20,
+            )
         rospy.on_shutdown(self._on_shutdown)
 
         self.last_person_time = rospy.Time(0)
@@ -587,6 +629,350 @@ class PersonGoalPublisher:
                 os.replace(tmp_path, path)
             except Exception as exc:
                 rospy.logwarn("Failed to write customer service state file: %s", exc)
+
+    def debug_state_override_callback(self, msg):
+        if not self.mhrc_nav_debug_state_override_enabled:
+            return
+
+        raw = str(msg.data or "").strip()
+        if not raw:
+            return
+
+        try:
+            payload = json.loads(raw)
+        except Exception as exc:
+            rospy.logwarn("Invalid debug state override payload: %s", exc)
+            return
+
+        if not isinstance(payload, dict):
+            rospy.logwarn("Debug state override payload must be a JSON object")
+            return
+
+        clear_customer_context = bool(payload.get("clear_customer_context", False))
+        if clear_customer_context:
+            self.active_customer_folder = ""
+            self.active_customer_id = ""
+
+        folder = payload.get("active_customer_folder")
+        if isinstance(folder, str) and folder.strip():
+            folder = folder.strip()
+            if os.path.isdir(folder):
+                self.active_customer_folder = folder
+                self.active_customer_id = os.path.basename(folder.rstrip("/"))
+            else:
+                rospy.logwarn("Debug state override folder does not exist: %s", folder)
+
+        customer_id = payload.get("active_customer_id")
+        if isinstance(customer_id, str) and customer_id.strip():
+            self.active_customer_id = customer_id.strip()
+
+        return_state = payload.get("return_navigation_state")
+        if isinstance(return_state, str) and return_state.strip():
+            self.return_navigation_state = return_state.strip().upper()
+
+        state = payload.get("active_customer_state")
+        if isinstance(state, str) and state.strip():
+            self._set_serving_customer_state(
+                state.strip().upper(),
+                {
+                    "source": "debug_state_override_topic",
+                    "return_navigation_state": self.return_navigation_state,
+                },
+            )
+
+    def _refresh_mhrc_navigation_gate_config(self):
+        self.mhrc_nav_state_gating_enabled = rospy.get_param(
+            "~mhrc_nav_state_gating_enabled",
+            self.mhrc_nav_state_gating_enabled,
+        )
+        self.mhrc_nav_force_accept = rospy.get_param(
+            "~mhrc_nav_force_accept",
+            self.mhrc_nav_force_accept,
+        )
+        self.mhrc_nav_allow_locked = rospy.get_param(
+            "~mhrc_nav_allow_locked",
+            self.mhrc_nav_allow_locked,
+        )
+        self.mhrc_nav_request_ttl = rospy.get_param(
+            "~mhrc_nav_request_ttl",
+            self.mhrc_nav_request_ttl,
+        )
+        self.mhrc_nav_debug_log_gating_decisions = rospy.get_param(
+            "~mhrc_nav_debug_log_gating_decisions",
+            self.mhrc_nav_debug_log_gating_decisions,
+        )
+
+    def _build_navigate_ack_payload(
+        self,
+        request_id,
+        success,
+        error_code="",
+        message="",
+        recommendation="",
+        extra=None,
+    ):
+        payload = {
+            "request_id": str(request_id or ""),
+            "success": bool(success),
+            "error_code": str(error_code or ""),
+            "message": str(message or ""),
+            "recommendation": str(recommendation or ""),
+            "timestamp": rospy.Time.now().to_sec(),
+            "active_customer_state": str(self.active_customer_state or "IDLE").upper(),
+            "return_navigation_state": str(self.return_navigation_state or "IDLE").upper(),
+        }
+        if isinstance(extra, dict):
+            payload.update(extra)
+        return payload
+
+    def _publish_navigate_ack(
+        self,
+        request_id,
+        success,
+        error_code="",
+        message="",
+        recommendation="",
+        extra=None,
+    ):
+        if self.navigate_ack_pub is None:
+            return
+        payload = self._build_navigate_ack_payload(
+            request_id=request_id,
+            success=success,
+            error_code=error_code,
+            message=message,
+            recommendation=recommendation,
+            extra=extra,
+        )
+        try:
+            self.navigate_ack_pub.publish(String(data=json.dumps(payload, ensure_ascii=False)))
+        except Exception as exc:
+            rospy.logwarn("Failed to publish navigate ACK: %s", exc)
+
+    def _evaluate_mhrc_navigation_gate(self):
+        self._refresh_mhrc_navigation_gate_config()
+        active_state = str(self.active_customer_state or "IDLE").strip().upper()
+        return_state = str(self.return_navigation_state or "IDLE").strip().upper()
+
+        if self.mhrc_nav_force_accept:
+            return {
+                "allowed": True,
+                "error_code": "",
+                "message": "force_accept_enabled",
+                "recommendation": "",
+            }
+
+        if not self.mhrc_nav_state_gating_enabled:
+            return {
+                "allowed": True,
+                "error_code": "",
+                "message": "state_gating_disabled",
+                "recommendation": "",
+            }
+
+        if return_state != "IDLE":
+            return {
+                "allowed": False,
+                "error_code": "busy_returning_navigation",
+                "message": f"Task5 return navigation active ({return_state})",
+                "recommendation": "wait_and_retry",
+            }
+
+        if active_state == "IDLE":
+            return {
+                "allowed": True,
+                "error_code": "",
+                "message": "allowed_in_idle",
+                "recommendation": "",
+            }
+
+        if self.mhrc_nav_allow_locked and active_state == "LOCKED":
+            return {
+                "allowed": True,
+                "error_code": "",
+                "message": "allowed_in_locked",
+                "recommendation": "",
+            }
+
+        if active_state in (
+            "LOCKED",
+            "TRACKING",
+            "PAUSED_ORDERING",
+            "ORDERED",
+            "RETURNING",
+            "TABLE_APPROACH",
+            "AT_TABLE_FRONT",
+        ):
+            return {
+                "allowed": False,
+                "error_code": "busy_service_workflow",
+                "message": f"Task5 active workflow state {active_state}",
+                "recommendation": "replan_wait_or_speak",
+            }
+
+        return {
+            "allowed": False,
+            "error_code": "stale_state",
+            "message": f"Unsupported or unknown Task5 state {active_state}",
+            "recommendation": "wait_and_retry",
+        }
+
+    def navigate_request_callback(self, msg):
+        raw = str(msg.data or "").strip()
+        request_id = ""
+
+        if not raw:
+            self._publish_navigate_ack(
+                request_id="",
+                success=False,
+                error_code="invalid_request",
+                message="empty navigate request payload",
+                recommendation="fix_payload",
+            )
+            return
+
+        try:
+            payload = json.loads(raw)
+        except Exception as exc:
+            self._publish_navigate_ack(
+                request_id="",
+                success=False,
+                error_code="invalid_request",
+                message=f"navigate request is not valid JSON: {exc}",
+                recommendation="fix_payload",
+            )
+            return
+
+        if not isinstance(payload, dict):
+            self._publish_navigate_ack(
+                request_id="",
+                success=False,
+                error_code="invalid_request",
+                message="navigate request payload must be a JSON object",
+                recommendation="fix_payload",
+            )
+            return
+
+        request_id = str(payload.get("request_id") or "").strip()
+        action = str(payload.get("action") or "navigate").strip().lower()
+        if action != "navigate":
+            self._publish_navigate_ack(
+                request_id=request_id,
+                success=False,
+                error_code="invalid_action",
+                message=f"unsupported action {action}",
+                recommendation="use_navigate_action",
+            )
+            return
+
+        now_sec = rospy.Time.now().to_sec()
+        ttl = max(1.0, float(self.mhrc_nav_request_ttl))
+        try:
+            request_ts = float(payload.get("timestamp", now_sec))
+        except Exception:
+            request_ts = now_sec
+        if now_sec - request_ts > ttl:
+            self._publish_navigate_ack(
+                request_id=request_id,
+                success=False,
+                error_code="request_timeout",
+                message=f"navigate request expired (>{ttl:.1f}s)",
+                recommendation="retry_with_new_request",
+            )
+            return
+
+        gate = self._evaluate_mhrc_navigation_gate()
+        if self.mhrc_nav_debug_log_gating_decisions:
+            rospy.loginfo(
+                "MHRC navigate gate decision: allowed=%s active_state=%s return_state=%s",
+                gate.get("allowed", False),
+                str(self.active_customer_state or "IDLE").upper(),
+                str(self.return_navigation_state or "IDLE").upper(),
+            )
+
+        if not gate.get("allowed", False):
+            self._publish_navigate_ack(
+                request_id=request_id,
+                success=False,
+                error_code=gate.get("error_code", "task5_fsm_active"),
+                message=gate.get("message", "Task5 state gate rejected navigate request"),
+                recommendation=gate.get("recommendation", "replan_wait_or_speak"),
+            )
+            return
+
+        pose = payload.get("pose")
+        if not isinstance(pose, dict):
+            self._publish_navigate_ack(
+                request_id=request_id,
+                success=False,
+                error_code="invalid_target",
+                message="pose field missing or not object",
+                recommendation="fix_target_pose",
+            )
+            return
+
+        try:
+            gx = float(pose.get("x"))
+            gy = float(pose.get("y"))
+            yaw = float(pose.get("yaw", 0.0))
+        except Exception:
+            self._publish_navigate_ack(
+                request_id=request_id,
+                success=False,
+                error_code="invalid_target",
+                message="pose requires numeric x/y[/yaw]",
+                recommendation="fix_target_pose",
+            )
+            return
+
+        if not (math.isfinite(gx) and math.isfinite(gy) and math.isfinite(yaw)):
+            self._publish_navigate_ack(
+                request_id=request_id,
+                success=False,
+                error_code="invalid_target",
+                message="pose contains non-finite values",
+                recommendation="fix_target_pose",
+            )
+            return
+
+        frame_id = str(payload.get("frame_id") or self.global_frame).strip()
+        if frame_id and frame_id != self.global_frame:
+            self._publish_navigate_ack(
+                request_id=request_id,
+                success=False,
+                error_code="invalid_frame",
+                message=f"unsupported frame_id {frame_id}, expected {self.global_frame}",
+                recommendation="use_global_frame",
+            )
+            return
+
+        try:
+            self._publish_manual_nav_goal(gx, gy, yaw, "mhrc-navigate-request")
+        except Exception as exc:
+            self._publish_navigate_ack(
+                request_id=request_id,
+                success=False,
+                error_code="goal_publish_failed",
+                message=str(exc),
+                recommendation="retry_with_new_request",
+            )
+            return
+
+        self._publish_navigate_ack(
+            request_id=request_id,
+            success=True,
+            error_code="",
+            message="navigate request accepted",
+            recommendation="",
+            extra={
+                "accepted_target": {
+                    "x": gx,
+                    "y": gy,
+                    "yaw": yaw,
+                    "frame_id": self.global_frame,
+                }
+            },
+        )
 
     def _select_customer_folder_for_service(self):
         root = self.customer_data_root

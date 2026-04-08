@@ -49,6 +49,7 @@ class Task5ROSAdapter(RobotInterface):
         self.navigate_ack_required = self._env_flag("MHRC_TASK5_NAV_ACK_REQUIRED", self.ack_required_default)
         self.pick_ack_required = self._env_flag("MHRC_TASK5_PICK_ACK_REQUIRED", self.ack_required_default)
         self.place_ack_required = self._env_flag("MHRC_TASK5_PLACE_ACK_REQUIRED", self.ack_required_default)
+        self.navigate_delegate_to_task5 = self._env_flag("MHRC_TASK5_NAV_DELEGATE_TO_TASK5", True)
 
         self.tts_module_file = os.environ.get("MHRC_TASK5_TTS_MODULE_FILE", "").strip()
         self.tts_class_name = os.environ.get("MHRC_TASK5_TTS_CLASS", "TTS").strip() or "TTS"
@@ -245,7 +246,12 @@ class Task5ROSAdapter(RobotInterface):
         return {
             "success": bool(success) if success is not None else False,
             "error": str(payload.get("error") or payload.get("message") or "").strip(),
+            "error_code": str(payload.get("error_code") or "").strip(),
+            "message": str(payload.get("message") or payload.get("error") or "").strip(),
             "request_id": str(payload.get("request_id") or "").strip(),
+            "active_customer_state": str(payload.get("active_customer_state") or "").strip(),
+            "return_navigation_state": str(payload.get("return_navigation_state") or "").strip(),
+            "recommendation": str(payload.get("recommendation") or "").strip(),
             "raw": text,
         }
 
@@ -274,6 +280,8 @@ class Task5ROSAdapter(RobotInterface):
         return {
             "success": False,
             "error": "ack_timeout",
+            "error_code": "ack_timeout",
+            "message": "ack_timeout",
             "request_id": request_id,
             "raw": "",
         }
@@ -326,7 +334,12 @@ class Task5ROSAdapter(RobotInterface):
             pose = self._resolve_target_pose(target)
             if pose is None:
                 self.set_state(RobotState.ERROR)
-                self.set_last_action_result("navigate", False, "invalid_target", {"target": target})
+                self.set_last_action_result(
+                    "navigate",
+                    False,
+                    "invalid_target",
+                    {"target": target, "error_code": "invalid_target"},
+                )
                 return False
 
             x, y, yaw = pose
@@ -342,10 +355,6 @@ class Task5ROSAdapter(RobotInterface):
             msg.pose.orientation.z = math.sin(yaw * 0.5)
             msg.pose.orientation.w = math.cos(yaw * 0.5)
 
-            for _ in range(self.goal_republish_count):
-                self.goal_pub.publish(msg)
-                self._rospy.sleep(0.03)
-
             nav_req = {
                 "action": "navigate",
                 "request_id": request_id,
@@ -356,21 +365,54 @@ class Task5ROSAdapter(RobotInterface):
             }
             self.navigate_request_pub.publish(self._String(data=json.dumps(nav_req, ensure_ascii=False)))
 
-            if self.navigate_ack_required:
+            need_ack = bool(self.navigate_ack_required or self.navigate_delegate_to_task5)
+            if need_ack:
                 ack = self._wait_for_ack("navigate", request_id=request_id, timeout=self.ack_timeout)
                 if not ack.get("success", False):
-                    error_msg = ack.get("error") or "navigate_ack_failed"
+                    error_code = str(ack.get("error_code") or ack.get("error") or "navigate_ack_failed").strip()
+                    error_msg = str(ack.get("message") or ack.get("error") or error_code).strip()
                     self.set_state(RobotState.ERROR)
-                    self.set_last_action_result("navigate", False, error_msg, {"request_id": request_id})
+                    self.set_last_action_result(
+                        "navigate",
+                        False,
+                        error_msg,
+                        {
+                            "request_id": request_id,
+                            "target": target,
+                            "error_code": error_code,
+                            "active_customer_state": ack.get("active_customer_state", ""),
+                            "return_navigation_state": ack.get("return_navigation_state", ""),
+                            "recommendation": ack.get("recommendation", ""),
+                        },
+                    )
                     return False
+
+            if not self.navigate_delegate_to_task5:
+                for _ in range(self.goal_republish_count):
+                    self.goal_pub.publish(msg)
+                    self._rospy.sleep(0.03)
 
             self.current_position = str(target)
             self.set_state(RobotState.IDLE)
-            self.set_last_action_result("navigate", True, "", {"request_id": request_id, "target": target})
+            self.set_last_action_result(
+                "navigate",
+                True,
+                "",
+                {
+                    "request_id": request_id,
+                    "target": target,
+                    "delegated": bool(self.navigate_delegate_to_task5),
+                },
+            )
             return True
         except Exception as exc:
             self.set_state(RobotState.ERROR)
-            self.set_last_action_result("navigate", False, str(exc), {"target": target})
+            self.set_last_action_result(
+                "navigate",
+                False,
+                str(exc),
+                {"target": target, "error_code": "navigate_exception"},
+            )
             return False
 
     def search(self, object_name: str) -> Optional[dict]:

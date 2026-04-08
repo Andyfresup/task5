@@ -9,6 +9,7 @@
 - 支持 `--check` 仅执行预检查（不启动主流程）
 - 默认依次启动 `base_4drive`、`fastlio_ws`、`far_planner` 的实机脚本，再启动 `task5_person_tracker`
 - 支持 `--person-only`、`--no-base`、`--no-fastlio`、`--no-far` 进行组件裁剪
+- 默认使用比赛档参数；加 `--test` 可切换到联调档参数
 - 支持 `--` 后透传参数到 `task5_person_tracker/run_task5_person_follow_voice.sh`（当前为预留透传位）
 - 检查主启动脚本、YOLO 目录、语音目录、`python3` 可用性
 - 支持 `STARTUP_DELAY`（秒）控制底层模块分步拉起间隔，默认 `2`
@@ -62,7 +63,7 @@ export FOOD_SEMANTIC_MHRC_API_KEY=ollama
 5. 无外设联调用（允许无输入）：
 
 ```bash
-bash run_task5_all.sh --person-only
+bash run_task5_all.sh --test --person-only
 ```
 
 6. 实机闭环运行（外设接入后）：
@@ -386,6 +387,9 @@ bash run_task5_all.sh --check
 # 仅启动 person_tracker（不启动底层三模块）
 bash run_task5_all.sh --person-only
 
+# 联调档（自动开启状态注入并关闭 ACK 强制）
+bash run_task5_all.sh --test --person-only
+
 # 跳过 FAR，仅启动 base + fastlio + person_tracker
 bash run_task5_all.sh --no-far
 
@@ -426,6 +430,20 @@ bash run_task5_all.sh -- --example-arg
 - `FOOD_SEMANTIC_MHRC_FUSE_COOLDOWN`
 - `FOOD_SEMANTIC_MHRC_STATS_LOG_INTERVAL`
 - `FOOD_SEMANTIC_TIMEOUT`
+- `MHRC_TASK5_NAV_DELEGATE_TO_TASK5`（`true` 时 `navigate` 先走 request/ack 受理）
+- `MHRC_TASK5_NAV_REQUEST_TOPIC`
+- `MHRC_TASK5_NAV_ACK_TOPIC`
+- `MHRC_TASK5_ACK_TIMEOUT`
+- `MHRC_TASK5_ACK_REQUIRED`
+- `NAVIGATE_REQUEST_TOPIC`（Task5 受理请求订阅）
+- `NAVIGATE_ACK_TOPIC`（Task5 结构化回执发布）
+- `MHRC_NAV_STATE_GATING_ENABLED`
+- `MHRC_NAV_FORCE_ACCEPT`（仅联调用，默认 `false`）
+- `MHRC_NAV_ALLOW_LOCKED`（是否在 `LOCKED` 时放行）
+- `MHRC_NAV_REQUEST_TTL`
+- `MHRC_NAV_DEBUG_LOG_GATING_DECISIONS`
+- `MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED`（联调用状态注入入口，默认关闭）
+- `MHRC_NAV_DEBUG_STATE_OVERRIDE_TOPIC`
 - `YOLO_PERCEPTION_DIR`（默认相对路径 `../26-WrightEagle.AI-YOLO-Perception`）
 - `TABLE_FOOD_CHECK_DELAY`
 - `TABLE_FOOD_DETECT_TIMEOUT`
@@ -467,9 +485,14 @@ bash run_task5_all.sh
 ### 10.3 动作 ACK 与失败回传
 
 - 已支持 `navigate/pick/place` ACK 通道：`MHRC_TASK5_NAV_ACK_TOPIC`、`MHRC_TASK5_PICK_ACK_TOPIC`、`MHRC_TASK5_PLACE_ACK_TOPIC`。
+- `navigate` 已改为“request/ack 优先”：MHRC 先发 `MHRC_TASK5_NAV_REQUEST_TOPIC`，由 Task5 按状态机门控受理后再回 ACK。
 - 支持请求唯一 `request_id` 与超时失败回传（`ack_timeout`）。
+- Task5 `navigate_ack` 回执包含结构化字段：`error_code`、`message`、`active_customer_state`、`return_navigation_state`、`recommendation`。
+- 可通过 `MHRC_TASK5_NAV_DELEGATE_TO_TASK5=false` 回退到“直接发 `/move_base_simple/goal`”旧路径（仅建议应急使用）。
 - 控制参数：`MHRC_TASK5_ACK_REQUIRED`、`MHRC_TASK5_NAV_ACK_REQUIRED`、`MHRC_TASK5_PICK_ACK_REQUIRED`、`MHRC_TASK5_PLACE_ACK_REQUIRED`、`MHRC_TASK5_ACK_TIMEOUT`。
 - 当前 ACK 机制主要覆盖 `navigate/pick/place`，`speak/wait/search` 默认不走 ACK 回执。
+
+状态门控参数（Task5 侧）：`MHRC_NAV_STATE_GATING_ENABLED`、`MHRC_NAV_FORCE_ACCEPT`、`MHRC_NAV_ALLOW_LOCKED`、`MHRC_NAV_REQUEST_TTL`、`MHRC_NAV_DEBUG_LOG_GATING_DECISIONS`。
 
 ### 10.4 反馈驱动重规划
 
@@ -565,14 +588,47 @@ export MHRC_TASK5_SEARCH_TOPIC=/person_following/search_cmd_vel
 export MHRC_TASK5_PICK_TOPIC=/person_following/pick_request
 export MHRC_TASK5_PLACE_TOPIC=/person_following/place_request
 export MHRC_TASK5_SPEAK_TOPIC=/person_following/mhrc_tts_text
+export MHRC_TASK5_NAV_REQUEST_TOPIC=/person_following/navigate_request
 
 export MHRC_TASK5_NAV_ACK_TOPIC=/person_following/navigate_ack
 export MHRC_TASK5_PICK_ACK_TOPIC=/person_following/pick_ack
 export MHRC_TASK5_PLACE_ACK_TOPIC=/person_following/place_ack
 export MHRC_TASK5_ACK_TIMEOUT=6.0
+export MHRC_TASK5_NAV_DELEGATE_TO_TASK5=true
+export MHRC_TASK5_ACK_REQUIRED=true
 
-# 联调早期如未实现 ACK 消费端，可先关闭 ACK 强制
+# Task5 状态门控（比赛默认建议开启）
+export NAVIGATE_REQUEST_TOPIC=/person_following/navigate_request
+export NAVIGATE_ACK_TOPIC=/person_following/navigate_ack
+export MHRC_NAV_STATE_GATING_ENABLED=true
+export MHRC_NAV_FORCE_ACCEPT=false
+export MHRC_NAV_ALLOW_LOCKED=false
+export MHRC_NAV_REQUEST_TTL=30.0
+export MHRC_NAV_DEBUG_LOG_GATING_DECISIONS=false
+export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=false
+export MHRC_NAV_DEBUG_STATE_OVERRIDE_TOPIC=/person_following/debug_state_override
+```
+
+推荐默认参数（比赛档，按本轮联调验证）：
+
+```bash
+export MHRC_TASK5_NAV_DELEGATE_TO_TASK5=true
+export MHRC_TASK5_ACK_REQUIRED=true
+export MHRC_TASK5_ACK_TIMEOUT=6.0
+
+export MHRC_NAV_STATE_GATING_ENABLED=true
+export MHRC_NAV_FORCE_ACCEPT=false
+export MHRC_NAV_ALLOW_LOCKED=false
+export MHRC_NAV_REQUEST_TTL=30.0
+export MHRC_NAV_DEBUG_LOG_GATING_DECISIONS=false
+export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=false
+```
+
+联调覆盖参数（仅调试用，不建议比赛默认打开）：
+
+```bash
 export MHRC_TASK5_ACK_REQUIRED=false
+export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=true
 ```
 
 3. 运行 MHRC 侧：
@@ -626,6 +682,38 @@ cd robocup26
 source .venv/bin/activate
 bash run_task5_all.sh
 ```
+
+### 11.7 联调矩阵执行（状态注入 + ACK 超时）
+
+1. 启动 Task5（建议开启调试状态注入）：
+
+```bash
+cd robocup26/task5_person_tracker
+export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=true
+bash run_task5_person_follow_voice.sh
+```
+
+2. 执行 Task5 状态门控矩阵：
+
+```bash
+cd robocup26
+python3 task5_person_tracker/tools/nav_gate_matrix_runner.py \
+	--suite all \
+	--enable-debug-state \
+	--ack-wait-timeout 3.0
+```
+
+3. 执行 MHRC 适配器 ACK 超时探针：
+
+```bash
+cd robocup26
+python3 26-WrightEagle.AI-MHRC-planning/tests/task5_ack_timeout_probe.py \
+	--mode timeout \
+	--ack-timeout 2.0 \
+	--ack-topic /person_following/navigate_ack_probe
+```
+
+说明：`task5_ack_timeout_probe.py` 的 `timeout` 模式默认不启动 ACK 回复端，用于稳定复现 `ack_timeout`；也可用 `--mode delayed-ack` 或 `--mode deny-ack` 覆盖其他 ACK 路径。
 
 ## 12. 快速排障
 
