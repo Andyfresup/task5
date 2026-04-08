@@ -459,6 +459,9 @@ bash run_task5_all.sh
 - ROS 执行适配入口位于 `26-WrightEagle.AI-MHRC-planning/src/modules/execution/task5_ros_adapter.py`（对应 `navigate/search/pick/place/speak/wait` 方法实现）。
 - Task5 本地播报入口已优先发布到 `/person_following/mhrc_tts_text`（即 MHRC `speak` 下游通道）；当该话题无订阅者或发布异常时，会自动回退到本地播报路径。
 - `speak` 动作默认发布到 `/person_following/mhrc_tts_text`；若配置 `MHRC_TASK5_TTS_MODULE_FILE` 与 `MHRC_TASK5_TTS_CLASS`，可直接调用本地 TTS 模块。
+- `speak` 动作在执行层已封装完成，可由 MHRC 规划结果直接触发执行。
+- `speak` 接设备有两种方式：话题方式（需要有 TTS 订阅节点消费 `/person_following/mhrc_tts_text`）或模块直调方式（适配器动态加载本地 TTS 类）。
+- 结论：接口层已可直接调用；是否真正出声取决于话题订阅端或本地 TTS 模块是否可用。
 - 已加入 ROS master 可达性探测，避免在 `roscore` 不在线时阻塞。
 
 ### 10.3 动作 ACK 与失败回传
@@ -466,6 +469,7 @@ bash run_task5_all.sh
 - 已支持 `navigate/pick/place` ACK 通道：`MHRC_TASK5_NAV_ACK_TOPIC`、`MHRC_TASK5_PICK_ACK_TOPIC`、`MHRC_TASK5_PLACE_ACK_TOPIC`。
 - 支持请求唯一 `request_id` 与超时失败回传（`ack_timeout`）。
 - 控制参数：`MHRC_TASK5_ACK_REQUIRED`、`MHRC_TASK5_NAV_ACK_REQUIRED`、`MHRC_TASK5_PICK_ACK_REQUIRED`、`MHRC_TASK5_PLACE_ACK_REQUIRED`、`MHRC_TASK5_ACK_TIMEOUT`。
+- 当前 ACK 机制主要覆盖 `navigate/pick/place`，`speak/wait/search` 默认不走 ACK 回执。
 
 ### 10.4 反馈驱动重规划
 
