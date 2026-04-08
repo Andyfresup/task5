@@ -76,6 +76,59 @@ bash run_task5_all.sh
 
 说明：未接 RealSense 或底盘串口时，出现等待 `/cloud_registered`、缺少 `/dev/ttyUSB0` 的日志是预期现象。
 
+## 0.1 最近更新（状态机 + 多模态锁定）
+
+以下为当前代码基线中已落地的关键行为更新（2026-04）。
+
+### A. 状态机增加 `customer_no` 标签
+
+- `person_goal_publisher.py` 的服务状态发布中，非 `IDLE` 状态会携带 `customer_no`。
+- `customer_no` 来源于当前活跃顾客文件夹名（`No.` 标签）。
+- 导航 ACK 负载与下游验收脚本模板已支持 `customer_no`，用于比赛现场快速排障。
+
+### B. 服务流程结束后的下一顾客循环
+
+- 状态机切换到 `IDLE` 后，`person_detection_with_voice.py` 会自动解锁当前跟踪目标。
+- 解锁后可继续等待下一次“举手/呼叫”触发，进入下一顾客服务循环。
+- 识别到新顾客后，仍按现有逻辑创建新顾客文件夹并抓拍人脸。
+
+### C. 语音触发选人改为“视觉融合打分”
+
+- 保持“举手优先级最高”：若检测到举手，直接锁定该目标。
+- 对语音触发路径新增 0.5-1.0 秒口部运动观测窗口。
+- 在待锁定窗口内，候选目标按融合分数选择（不再只看最近距离）。
+
+融合分项包括：
+
+- 距离（depth）
+- 朝向估计（是否面向相机）
+- 时序一致性（track 命中与抖动稳定性）
+- 口部运动代理特征（仅在口部窗口内加权）
+
+新增可调参数（`person_detection_with_voice.py`）：
+
+- `~voice_lock_mouth_window_min_sec`（默认 `0.5`）
+- `~voice_lock_mouth_window_max_sec`（默认 `1.0`）
+- `~voice_lock_pending_timeout_sec`（默认 `1.6`）
+- `~voice_fusion_weight_distance`（默认 `0.35`）
+- `~voice_fusion_weight_orientation`（默认 `0.25`）
+- `~voice_fusion_weight_temporal`（默认 `0.20`）
+- `~voice_fusion_weight_mouth`（默认 `0.35`）
+- `~voice_temporal_hit_norm`（默认 `8.0`）
+
+### D. 融合分数调试日志（可开关）
+
+已支持在语音待锁定阶段输出候选分项日志，便于在线调参：
+
+- `~voice_fusion_debug_scores`（默认 `True`）
+- `~voice_fusion_debug_interval_sec`（默认 `0.0`，每帧输出；可改为 `0.2` 等降低频率）
+- `~voice_fusion_debug_top_k`（默认 `6`）
+
+### E. 桌前检测流程收口策略
+
+- 桌前缺失食物检测完成后，当前版本不再自动收口到服务完成/`IDLE`。
+- 该阶段已留空，供后续“后半段服务流程”接入。
+
 ## 1. 目录概览
 
 根目录包含多个子工程，Task5 运行主要依赖：

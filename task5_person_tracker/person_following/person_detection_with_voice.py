@@ -392,6 +392,176 @@ def choose_nearest(candidates):
     return min(candidates, key=lambda c: c["depth"])
 
 
+def _clamp01(value):
+    try:
+        return max(0.0, min(1.0, float(value)))
+    except Exception:
+        return 0.0
+
+
+def estimate_facing_score(keypoints_xy, keypoints_conf, box_xyxy, conf_th=0.25):
+    """Estimate whether a person is likely facing camera using pose symmetry cues."""
+    try:
+        x1, _, x2, _ = [float(v) for v in box_xyxy]
+        box_w = max(1.0, x2 - x1)
+    except Exception:
+        box_w = 1.0
+
+    nose_idx = 0
+    l_sh, r_sh = 5, 6
+    l_ok = keypoints_conf[l_sh] > conf_th
+    r_ok = keypoints_conf[r_sh] > conf_th
+    n_ok = keypoints_conf[nose_idx] > conf_th
+
+    if l_ok and r_ok:
+        lx = float(keypoints_xy[l_sh][0])
+        rx = float(keypoints_xy[r_sh][0])
+        shoulder_w = max(1.0, abs(lx - rx))
+        shoulder_vis = _clamp01(shoulder_w / (0.35 * box_w + 1e-6))
+
+        if n_ok:
+            nx = float(keypoints_xy[nose_idx][0])
+            mid = 0.5 * (lx + rx)
+            align = 1.0 - _clamp01(abs(nx - mid) / (0.5 * shoulder_w + 1e-6))
+            return _clamp01(0.15 + 0.55 * align + 0.30 * shoulder_vis)
+
+        return _clamp01(0.25 + 0.50 * shoulder_vis)
+
+    if n_ok:
+        nx = float(keypoints_xy[nose_idx][0])
+        center_align = 1.0 - _clamp01(abs(nx - (x1 + x2) * 0.5) / (0.25 * box_w + 1e-6))
+        return _clamp01(0.15 + 0.45 * center_align)
+
+    return 0.20
+
+
+def _extract_mouth_patch_gray(color_img, box_xyxy, keypoints_xy, keypoints_conf):
+    if color_img is None:
+        return None
+
+    h_img, w_img = color_img.shape[:2]
+    try:
+        x1, y1, x2, y2 = [int(v) for v in box_xyxy]
+    except Exception:
+        return None
+
+    x1 = max(0, min(x1, w_img - 1))
+    x2 = max(0, min(x2, w_img - 1))
+    y1 = max(0, min(y1, h_img - 1))
+    y2 = max(0, min(y2, h_img - 1))
+    if x2 <= x1 or y2 <= y1:
+        return None
+
+    box_w = max(1, x2 - x1)
+    box_h = max(1, y2 - y1)
+    nose_idx = 0
+    conf_th = 0.20
+
+    if keypoints_conf[nose_idx] > conf_th:
+        nx = int(float(keypoints_xy[nose_idx][0]))
+        ny = int(float(keypoints_xy[nose_idx][1]))
+        rw = max(12, int(box_w * 0.22))
+        rh = max(8, int(box_h * 0.12))
+        cx = nx
+        cy = ny + max(2, int(box_h * 0.05))
+        rx1 = cx - rw // 2
+        rx2 = cx + rw // 2
+        ry1 = cy - rh // 2
+        ry2 = cy + rh // 2
+    else:
+        rx1 = x1 + int(box_w * 0.30)
+        rx2 = x1 + int(box_w * 0.70)
+        ry1 = y1 + int(box_h * 0.10)
+        ry2 = y1 + int(box_h * 0.24)
+
+    rx1 = max(0, min(rx1, w_img - 1))
+    rx2 = max(0, min(rx2, w_img - 1))
+    ry1 = max(0, min(ry1, h_img - 1))
+    ry2 = max(0, min(ry2, h_img - 1))
+    if rx2 <= rx1 or ry2 <= ry1:
+        return None
+
+    roi = color_img[ry1:ry2, rx1:rx2]
+    if roi.size == 0:
+        return None
+
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+    patch = cv2.resize(gray, (24, 16), interpolation=cv2.INTER_AREA)
+    return patch
+
+
+def update_mouth_motion(track_state, color_img, box_xyxy, keypoints_xy, keypoints_conf, now_sec):
+    patch = _extract_mouth_patch_gray(color_img, box_xyxy, keypoints_xy, keypoints_conf)
+    prev_patch = track_state.get("mouth_patch")
+    motion_raw = 0.0
+
+    if patch is not None and isinstance(prev_patch, np.ndarray) and prev_patch.shape == patch.shape:
+        diff = cv2.absdiff(patch, prev_patch)
+        motion_raw = float(np.mean(diff)) / 255.0
+
+    prev_ema = float(track_state.get("mouth_motion_ema", 0.0))
+    ema = 0.75 * prev_ema + 0.25 * motion_raw
+    track_state["mouth_motion_ema"] = _clamp01(ema)
+    if patch is not None:
+        track_state["mouth_patch"] = patch
+        track_state["mouth_patch_time"] = float(now_sec)
+    return track_state["mouth_motion_ema"]
+
+
+def choose_voice_fusion_target(
+    candidates,
+    now_sec,
+    voice_trigger_time,
+    mouth_window_min,
+    mouth_window_max,
+    weight_distance,
+    weight_orientation,
+    weight_temporal,
+    weight_mouth,
+):
+    if not candidates:
+        return None, False
+
+    elapsed = max(0.0, float(now_sec) - float(voice_trigger_time or 0.0))
+    in_mouth_window = (elapsed >= float(mouth_window_min)) and (elapsed <= float(mouth_window_max))
+
+    depths = [float(c.get("depth", 0.0)) for c in candidates]
+    d_min = min(depths)
+    d_max = max(depths)
+    d_span = max(1e-6, d_max - d_min)
+
+    best = None
+    best_score = -1e9
+
+    for c in candidates:
+        depth = float(c.get("depth", d_max))
+        if d_max - d_min < 1e-6:
+            distance_score = 1.0
+        else:
+            distance_score = 1.0 - ((depth - d_min) / d_span)
+
+        orientation_score = _clamp01(c.get("orientation_score", 0.0))
+        temporal_score = _clamp01(c.get("consistency_score", 0.0))
+        mouth_score = _clamp01(c.get("mouth_motion", 0.0))
+
+        score = (
+            float(weight_distance) * distance_score
+            + float(weight_orientation) * orientation_score
+            + float(weight_temporal) * temporal_score
+        )
+        if in_mouth_window:
+            score += float(weight_mouth) * mouth_score
+
+        c["distance_score"] = distance_score
+        c["fusion_score"] = score
+
+        if score > best_score:
+            best_score = score
+            best = c
+
+    return best, in_mouth_window
+
+
 def main():
     rospy.init_node("person_detection_with_voice")
 
@@ -405,6 +575,20 @@ def main():
     lock_match_px = rospy.get_param("~lock_match_px", 120.0)
     track_timeout = rospy.get_param("~track_timeout", 1.0)
     call_timeout = rospy.get_param("~call_timeout", 1.0)
+    voice_lock_mouth_window_min_sec = rospy.get_param("~voice_lock_mouth_window_min_sec", 0.5)
+    voice_lock_mouth_window_max_sec = rospy.get_param("~voice_lock_mouth_window_max_sec", 1.0)
+    voice_lock_pending_timeout_sec = rospy.get_param("~voice_lock_pending_timeout_sec", 1.6)
+    voice_fusion_weight_distance = rospy.get_param("~voice_fusion_weight_distance", 0.35)
+    voice_fusion_weight_orientation = rospy.get_param("~voice_fusion_weight_orientation", 0.25)
+    voice_fusion_weight_temporal = rospy.get_param("~voice_fusion_weight_temporal", 0.20)
+    voice_fusion_weight_mouth = rospy.get_param("~voice_fusion_weight_mouth", 0.35)
+    voice_temporal_hit_norm = max(1.0, float(rospy.get_param("~voice_temporal_hit_norm", 8.0)))
+    voice_fusion_debug_scores = rospy.get_param("~voice_fusion_debug_scores", True)
+    voice_fusion_debug_interval_sec = max(
+        0.0,
+        float(rospy.get_param("~voice_fusion_debug_interval_sec", 0.0)),
+    )
+    voice_fusion_debug_top_k = max(1, int(rospy.get_param("~voice_fusion_debug_top_k", 6)))
     enable_voice = rospy.get_param("~enable_voice", True)
     whisper_model = rospy.get_param("~whisper_model", "small")
 
@@ -503,6 +687,9 @@ def main():
     serving_target_capture_pending = False
     serving_target_capture_request = None
     serving_target_capture_time = None
+    voice_lock_pending = False
+    voice_call_trigger_time = 0.0
+    last_voice_fusion_debug_log_time = 0.0
 
     def _try_record_return_anchor(reason, track_id):
         nonlocal return_anchor_recorded
@@ -851,6 +1038,8 @@ def main():
         nonlocal serving_target_capture_pending
         nonlocal serving_target_capture_request
         nonlocal serving_target_capture_time
+        nonlocal voice_lock_pending
+        nonlocal voice_call_trigger_time
 
         raw = str(msg.data or "").strip()
         if not raw:
@@ -897,10 +1086,54 @@ def main():
         serving_target_capture_pending = False
         serving_target_capture_request = None
         serving_target_capture_time = None
+        voice_lock_pending = False
+        voice_call_trigger_time = 0.0
         active_customer_folder = ""
         active_customer_id = ""
         active_customer_no = ""
         rospy.loginfo_throttle(2.0, "Serving state switched to IDLE, unlock detector for next customer.")
+
+    def _maybe_log_voice_fusion_scores(candidates, elapsed_sec, in_mouth_window, selected_track_id=None):
+        nonlocal last_voice_fusion_debug_log_time
+
+        if not voice_fusion_debug_scores:
+            return
+
+        now_mono = time.monotonic()
+        if voice_fusion_debug_interval_sec > 0.0:
+            if (now_mono - last_voice_fusion_debug_log_time) < voice_fusion_debug_interval_sec:
+                return
+        last_voice_fusion_debug_log_time = now_mono
+
+        if not candidates:
+            return
+
+        ranked = sorted(candidates, key=lambda c: float(c.get("fusion_score", 0.0)), reverse=True)
+        parts = []
+        for c in ranked[:voice_fusion_debug_top_k]:
+            tid = int(c.get("track_id", -1))
+            mark = "*" if (selected_track_id is not None and tid == int(selected_track_id)) else ""
+            parts.append(
+                "%s%d:s=%.3f d=%.2f o=%.2f t=%.2f m=%.2f z=%.2f"
+                % (
+                    mark,
+                    tid,
+                    float(c.get("fusion_score", 0.0)),
+                    float(c.get("distance_score", 0.0)),
+                    float(c.get("orientation_score", 0.0)),
+                    float(c.get("consistency_score", 0.0)),
+                    float(c.get("mouth_motion", 0.0)),
+                    float(c.get("depth", 0.0)),
+                )
+            )
+
+        rospy.loginfo(
+            "Voice fusion frame: elapsed=%.2fs window=%s candidates=%d %s",
+            float(elapsed_sec),
+            "mouth" if in_mouth_window else "pre/post",
+            len(candidates),
+            " | ".join(parts),
+        )
 
     rospy.Subscriber(
         serving_target_capture_topic,
@@ -985,11 +1218,37 @@ def main():
                             "cx": cx,
                             "cy": cy,
                             "last_seen": now_sec,
+                            "first_seen": now_sec,
+                            "hits": 1,
+                            "mouth_patch": None,
+                            "mouth_motion_ema": 0.0,
                         }
+                        temporal_stability = 0.45
                     else:
+                        prev_cx = float(tracks[tid].get("cx", cx))
+                        prev_cy = float(tracks[tid].get("cy", cy))
+                        delta = ((cx - prev_cx) * (cx - prev_cx) + (cy - prev_cy) * (cy - prev_cy)) ** 0.5
+                        temporal_stability = 1.0 - min(1.0, float(delta) / max(float(lock_match_px), 1.0))
                         tracks[tid]["cx"] = cx
                         tracks[tid]["cy"] = cy
                         tracks[tid]["last_seen"] = now_sec
+                        tracks[tid]["hits"] = int(tracks[tid].get("hits", 0)) + 1
+                        if "first_seen" not in tracks[tid]:
+                            tracks[tid]["first_seen"] = now_sec
+
+                    track_hits = max(1, int(tracks[tid].get("hits", 1)))
+                    hit_score = min(1.0, float(track_hits) / float(voice_temporal_hit_norm))
+                    consistency_score = _clamp01(0.6 * hit_score + 0.4 * temporal_stability)
+
+                    orientation_score = estimate_facing_score(kxy[i], kcf[i], boxes[i])
+                    mouth_motion = update_mouth_motion(
+                        tracks[tid],
+                        color_img,
+                        boxes[i],
+                        kxy[i],
+                        kcf[i],
+                        now_sec,
+                    )
 
                     item = {
                         "track_id": tid,
@@ -997,6 +1256,10 @@ def main():
                         "cy": cy,
                         "box": boxes[i],
                         "depth": depth,
+                        "orientation_score": orientation_score,
+                        "consistency_score": consistency_score,
+                        "mouth_motion": mouth_motion,
+                        "track_hits": track_hits,
                     }
                     all_candidates.append(item)
                     if is_raised_hand(kxy[i], kcf[i]):
@@ -1009,26 +1272,71 @@ def main():
             selected = None
             if locked_track_id is None:
                 voice_triggered = voice_detector and voice_detector.check_call(call_timeout)
+                if voice_triggered:
+                    voice_lock_pending = True
+                    voice_call_trigger_time = now_sec
+
                 if raised_candidates:
                     selected = choose_rightmost(raised_candidates)
                     rospy.loginfo("Locked raised-hand target: track_id=%d", selected["track_id"])
                     locked_track_id = selected["track_id"]
+                    voice_lock_pending = False
+                    voice_call_trigger_time = 0.0
                     _ensure_customer_folder("raised_hand", selected["track_id"])
                     first_lock_face_saved = False
                     if return_anchor_trigger_reason is None:
                         return_anchor_trigger_reason = "raised_hand"
                         return_anchor_trigger_track_id = selected["track_id"]
                         _try_record_return_anchor(return_anchor_trigger_reason, return_anchor_trigger_track_id)
-                elif voice_triggered and all_candidates:
-                    selected = choose_nearest(all_candidates)
-                    rospy.loginfo("Locked voice-call target (nearest): track_id=%d", selected["track_id"])
-                    locked_track_id = selected["track_id"]
-                    _ensure_customer_folder("voice_call", selected["track_id"])
-                    first_lock_face_saved = False
-                    if return_anchor_trigger_reason is None:
-                        return_anchor_trigger_reason = "voice_call"
-                        return_anchor_trigger_track_id = selected["track_id"]
-                        _try_record_return_anchor(return_anchor_trigger_reason, return_anchor_trigger_track_id)
+                elif voice_lock_pending:
+                    elapsed = max(0.0, now_sec - float(voice_call_trigger_time))
+                    if all_candidates:
+                        best_candidate, in_mouth_window = choose_voice_fusion_target(
+                            all_candidates,
+                            now_sec=now_sec,
+                            voice_trigger_time=voice_call_trigger_time,
+                            mouth_window_min=voice_lock_mouth_window_min_sec,
+                            mouth_window_max=voice_lock_mouth_window_max_sec,
+                            weight_distance=voice_fusion_weight_distance,
+                            weight_orientation=voice_fusion_weight_orientation,
+                            weight_temporal=voice_fusion_weight_temporal,
+                            weight_mouth=voice_fusion_weight_mouth,
+                        )
+
+                        _maybe_log_voice_fusion_scores(
+                            all_candidates,
+                            elapsed_sec=elapsed,
+                            in_mouth_window=in_mouth_window,
+                            selected_track_id=None if best_candidate is None else best_candidate.get("track_id"),
+                        )
+
+                        if elapsed < max(0.0, float(voice_lock_mouth_window_min_sec)):
+                            # Keep collecting motion cues before locking target.
+                            pass
+                        elif best_candidate is not None:
+                            selected = best_candidate
+                            rospy.loginfo(
+                                "Locked voice target (fusion): track_id=%d score=%.3f window=%s mouth=%.3f depth=%.2f orient=%.2f consistency=%.2f",
+                                int(selected.get("track_id", -1)),
+                                float(selected.get("fusion_score", 0.0)),
+                                "mouth" if in_mouth_window else "pre/post",
+                                float(selected.get("mouth_motion", 0.0)),
+                                float(selected.get("depth", 0.0)),
+                                float(selected.get("orientation_score", 0.0)),
+                                float(selected.get("consistency_score", 0.0)),
+                            )
+                            locked_track_id = selected["track_id"]
+                            voice_lock_pending = False
+                            voice_call_trigger_time = 0.0
+                            _ensure_customer_folder("voice_call", selected["track_id"])
+                            first_lock_face_saved = False
+                            if return_anchor_trigger_reason is None:
+                                return_anchor_trigger_reason = "voice_call"
+                                return_anchor_trigger_track_id = selected["track_id"]
+                                _try_record_return_anchor(return_anchor_trigger_reason, return_anchor_trigger_track_id)
+                    if voice_lock_pending and elapsed > max(float(call_timeout), float(voice_lock_pending_timeout_sec)):
+                        voice_lock_pending = False
+                        voice_call_trigger_time = 0.0
             else:
                 for c in all_candidates:
                     if c["track_id"] == locked_track_id:
