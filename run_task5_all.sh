@@ -54,6 +54,14 @@ apply_profile_env() {
       export MHRC_NAV_REQUEST_TTL=30.0
       export MHRC_NAV_DEBUG_LOG_GATING_DECISIONS=false
       export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=false
+      export TASK5_SPEAK_PRIORITY_HIGHER=true
+      export MHRC_SPEAK_BRIDGE_ENABLED=true
+      export MHRC_SPEAK_BRIDGE_TOPIC=/person_following/mhrc_tts_text
+      export PAUSE_REPLY_TOPIC=/person_following/pause_reply_text
+      export PAUSE_REPLY_LISTEN_ENABLED=false
+      export PAUSE_REPLY_TEXT_INPUT_ENABLED=true
+      export SPEECH_ASR_STANDALONE_ENABLED=true
+      export SPEECH_ASR_OUTPUT_TOPIC=/person_following/pause_reply_text
       ;;
     test)
       export MHRC_TASK5_NAV_DELEGATE_TO_TASK5=true
@@ -65,6 +73,14 @@ apply_profile_env() {
       export MHRC_NAV_REQUEST_TTL=30.0
       export MHRC_NAV_DEBUG_LOG_GATING_DECISIONS=false
       export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=true
+      export TASK5_SPEAK_PRIORITY_HIGHER=true
+      export MHRC_SPEAK_BRIDGE_ENABLED=true
+      export MHRC_SPEAK_BRIDGE_TOPIC=/person_following/mhrc_tts_text
+      export PAUSE_REPLY_TOPIC=/person_following/pause_reply_text
+      export PAUSE_REPLY_LISTEN_ENABLED=false
+      export PAUSE_REPLY_TEXT_INPUT_ENABLED=true
+      export SPEECH_ASR_STANDALONE_ENABLED=true
+      export SPEECH_ASR_OUTPUT_TOPIC=/person_following/pause_reply_text
       ;;
     *)
       echo "[ERROR] Unknown profile mode: ${PROFILE_MODE}" >&2
@@ -226,7 +242,7 @@ export SPEECH_ASR_FILE="${SPEECH_ASR_FILE:-../26-WrightEagle.AI-Speech/src/asr/v
 apply_profile_env
 
 echo "[INFO] Using profile: ${PROFILE_MODE}"
-echo "[INFO] Profile params: ACK_REQUIRED=${MHRC_TASK5_ACK_REQUIRED} ACK_TIMEOUT=${MHRC_TASK5_ACK_TIMEOUT} STATE_OVERRIDE=${MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED}"
+echo "[INFO] Profile params: ACK_REQUIRED=${MHRC_TASK5_ACK_REQUIRED} ACK_TIMEOUT=${MHRC_TASK5_ACK_TIMEOUT} STATE_OVERRIDE=${MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED} TASK5_SPEAK_FIRST=${TASK5_SPEAK_PRIORITY_HIGHER} SPEAK_BRIDGE=${MHRC_SPEAK_BRIDGE_ENABLED} PAUSE_LISTEN=${PAUSE_REPLY_LISTEN_ENABLED} TOPIC_INPUT=${PAUSE_REPLY_TEXT_INPUT_ENABLED} ASR_STANDALONE=${SPEECH_ASR_STANDALONE_ENABLED}"
 
 trap cleanup EXIT INT TERM
 

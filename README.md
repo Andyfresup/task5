@@ -444,6 +444,15 @@ bash run_task5_all.sh -- --example-arg
 - `MHRC_NAV_DEBUG_LOG_GATING_DECISIONS`
 - `MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED`（联调用状态注入入口，默认关闭）
 - `MHRC_NAV_DEBUG_STATE_OVERRIDE_TOPIC`
+- `TASK5_SPEAK_PRIORITY_HIGHER`（Task5 本地播报优先）
+- `MHRC_SPEAK_BRIDGE_ENABLED`（将 `/person_following/mhrc_tts_text` 桥接到 Task5 播报链路）
+- `MHRC_SPEAK_BRIDGE_TOPIC`（默认 `/person_following/mhrc_tts_text`）
+- `PAUSE_REPLY_TOPIC`（统一语音文本话题，默认 `/person_following/pause_reply_text`）
+- `PAUSE_REPLY_LISTEN_ENABLED`（Task5 内置 ASR 一次性监听开关；统一 Speech 上游时建议 `false`）
+- `PAUSE_REPLY_TEXT_INPUT_ENABLED`（Task5 订阅语音文本话题开关，建议 `true`）
+- `SPEECH_ASR_STANDALONE_ENABLED`（是否在 Task5 启动脚本中拉起独立 ASR 文本发布进程）
+- `SPEECH_ASR_OUTPUT_TOPIC`（独立 ASR 文本输出话题，建议与 `PAUSE_REPLY_TOPIC` 一致）
+- `SPEECH_ASR_MIC_NAME`（独立 ASR 使用的麦克风名片段）
 - `YOLO_PERCEPTION_DIR`（默认相对路径 `../26-WrightEagle.AI-YOLO-Perception`）
 - `TABLE_FOOD_CHECK_DELAY`
 - `TABLE_FOOD_DETECT_TIMEOUT`
@@ -479,6 +488,7 @@ bash run_task5_all.sh
 - `speak` 动作默认发布到 `/person_following/mhrc_tts_text`；若配置 `MHRC_TASK5_TTS_MODULE_FILE` 与 `MHRC_TASK5_TTS_CLASS`，可直接调用本地 TTS 模块。
 - `speak` 动作在执行层已封装完成，可由 MHRC 规划结果直接触发执行。
 - `speak` 接设备有两种方式：话题方式（需要有 TTS 订阅节点消费 `/person_following/mhrc_tts_text`）或模块直调方式（适配器动态加载本地 TTS 类）。
+- MHRC 现支持 ROS 文本输入模式：`python3 26-WrightEagle.AI-MHRC-planning/src/main.py --ros-input --speech-topic /person_following/pause_reply_text`，可与 Task5 并行消费同一 Speech-ASR 文本上游。
 - 结论：接口层已可直接调用；是否真正出声取决于话题订阅端或本地 TTS 模块是否可用。
 - 已加入 ROS master 可达性探测，避免在 `roscore` 不在线时阻塞。
 
@@ -489,6 +499,7 @@ bash run_task5_all.sh
 - 支持请求唯一 `request_id` 与超时失败回传（`ack_timeout`）。
 - Task5 `navigate_ack` 回执包含结构化字段：`error_code`、`message`、`active_customer_state`、`return_navigation_state`、`recommendation`。
 - 可通过 `MHRC_TASK5_NAV_DELEGATE_TO_TASK5=false` 回退到“直接发 `/move_base_simple/goal`”旧路径（仅建议应急使用）。
+- 状态机硬隔离：当 Task5 处于 `LOCKED/TRACKING/PAUSED_ORDERING/ORDERED/RETURNING/TABLE_APPROACH/AT_TABLE_FRONT` 任一流程态时，MHRC `navigate` 固定拒绝，不参与流程内导航写入（`MHRC_NAV_ALLOW_LOCKED` 不再绕过该约束）。
 - 控制参数：`MHRC_TASK5_ACK_REQUIRED`、`MHRC_TASK5_NAV_ACK_REQUIRED`、`MHRC_TASK5_PICK_ACK_REQUIRED`、`MHRC_TASK5_PLACE_ACK_REQUIRED`、`MHRC_TASK5_ACK_TIMEOUT`。
 - 当前 ACK 机制主要覆盖 `navigate/pick/place`，`speak/wait/search` 默认不走 ACK 回执。
 
@@ -607,6 +618,9 @@ export MHRC_NAV_REQUEST_TTL=30.0
 export MHRC_NAV_DEBUG_LOG_GATING_DECISIONS=false
 export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=false
 export MHRC_NAV_DEBUG_STATE_OVERRIDE_TOPIC=/person_following/debug_state_override
+export TASK5_SPEAK_PRIORITY_HIGHER=true
+export MHRC_SPEAK_BRIDGE_ENABLED=true
+export MHRC_SPEAK_BRIDGE_TOPIC=/person_following/mhrc_tts_text
 ```
 
 推荐默认参数（比赛档，按本轮联调验证）：
@@ -622,6 +636,9 @@ export MHRC_NAV_ALLOW_LOCKED=false
 export MHRC_NAV_REQUEST_TTL=30.0
 export MHRC_NAV_DEBUG_LOG_GATING_DECISIONS=false
 export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=false
+export TASK5_SPEAK_PRIORITY_HIGHER=true
+export MHRC_SPEAK_BRIDGE_ENABLED=true
+export MHRC_SPEAK_BRIDGE_TOPIC=/person_following/mhrc_tts_text
 ```
 
 联调覆盖参数（仅调试用，不建议比赛默认打开）：

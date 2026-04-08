@@ -10,6 +10,7 @@ Run modes:
 
 import sys
 import argparse
+import threading
 from robot_controller import RobotController
 from config import Config
 
@@ -107,24 +108,63 @@ def demo_mode(args):
     controller.run_test_scenario(demo_scenario)
 
 
+def ros_input_mode(args):
+    """ROS text-input mode: subscribe speech text topic and process it."""
+    print_banner()
+    print(f"🎙 ROS input mode: subscribing to {args.speech_topic}\n")
+
+    try:
+        import rospy
+        from std_msgs.msg import String
+    except Exception as exc:
+        raise RuntimeError(f"ROS dependencies unavailable: {exc}") from exc
+
+    if not rospy.core.is_initialized():
+        rospy.init_node("mhrc_speech_text_bridge", anonymous=True, disable_signals=True)
+
+    controller = RobotController(
+        prompt_mode=args.mode,
+        show_thought=not args.no_thought,
+    )
+
+    callback_lock = threading.Lock()
+
+    def _on_text(msg):
+        text = str(msg.data or "").strip()
+        if not text:
+            return
+
+        with callback_lock:
+            print(f"\n🎙 Speech text: {text}")
+            try:
+                controller.process_input(text)
+            except Exception as exc:
+                print(f"❌ Failed to process speech text: {exc}")
+
+    rospy.Subscriber(args.speech_topic, String, _on_text, queue_size=20)
+    print("✅ MHRC speech-topic bridge ready. Press Ctrl+C to exit.")
+    rospy.spin()
+
+
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(
         description="CADE Embodied Intelligence Robot System",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+                epilog="""
 Examples:
-  python main.py              # Interactive mode
-  python main.py --test       # Test mode
-  python main.py --demo       # Demo mode
-  python main.py --mode debug # Use debug prompt
+    python main.py              # Interactive mode
+    python main.py --test       # Test mode
+    python main.py --demo       # Demo mode
+    python main.py --ros-input  # ROS speech text mode
+    python main.py --mode debug # Use debug prompt
 
 Tips:
-  - Please configure API key in config.py before first run
-  - Type 'quit' to exit in interactive mode
-  - Type 'status' to view robot status
-  - Type 'stats' to view statistics
-        """
+    - Please configure API key in config.py before first run
+    - Type 'quit' to exit in interactive mode
+    - Type 'status' to view robot status
+    - Type 'stats' to view statistics
+                """
     )
 
     parser.add_argument(
@@ -137,6 +177,19 @@ Tips:
         '--demo',
         action='store_true',
         help='Run demo mode'
+    )
+
+    parser.add_argument(
+        '--ros-input',
+        action='store_true',
+        help='Subscribe ROS speech text topic and process text input'
+    )
+
+    parser.add_argument(
+        '--speech-topic',
+        type=str,
+        default='/person_following/pause_reply_text',
+        help='ROS speech text topic used in --ros-input mode'
     )
 
     parser.add_argument(
@@ -156,7 +209,9 @@ Tips:
     args = parser.parse_args()
 
     try:
-        if args.test:
+        if args.ros_input:
+            ros_input_mode(args)
+        elif args.test:
             test_mode(args)
         elif args.demo:
             demo_mode(args)
