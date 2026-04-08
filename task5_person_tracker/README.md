@@ -175,6 +175,86 @@ The arbitration chain is:
 
 If you launch FAR Planner separately, use its task5 launch with `cmd_vel_output_topic:=/cmd_vel_nav` so the arbiter can own the final `/cmd_vel` output.
 
+Semantic backend can be selected via environment variables before launch:
+
+```bash
+export FOOD_SEMANTIC_BACKEND=mhrc
+export FOOD_SEMANTIC_MHRC_BASE_URL=http://127.0.0.1:11434/v1
+export FOOD_SEMANTIC_MHRC_MODEL=qwen2.5:3b
+export FOOD_SEMANTIC_MHRC_API_KEY=ollama
+export FOOD_SEMANTIC_MHRC_ASYNC_WORKERS=1
+export FOOD_SEMANTIC_MHRC_TIMEOUT=5.0
+export FOOD_SEMANTIC_MHRC_FUSE_FAIL_THRESHOLD=3
+export FOOD_SEMANTIC_MHRC_FUSE_COOLDOWN=15.0
+bash run_task5_person_follow_voice.sh
+```
+
+Available values for `FOOD_SEMANTIC_BACKEND` are: `ollama`, `command`, `transformers`, and `mhrc`.
+
+### 5.1 Task5 + MHRC Deployment Runbook
+
+Use this checklist when you run Task5 with MHRC semantic parsing.
+
+1. Bring up ROS master and run pre-check:
+
+```bash
+source /opt/ros/noetic/setup.bash
+roscore
+```
+
+Open another terminal:
+
+```bash
+source /opt/ros/noetic/setup.bash
+cd robocup26
+source .venv/bin/activate
+bash run_task5_all.sh --check
+```
+
+2. Enable MHRC semantic backend and launch Task5 stack:
+
+```bash
+cd robocup26
+source .venv/bin/activate
+
+export FOOD_SEMANTIC_BACKEND=mhrc
+export FOOD_SEMANTIC_MHRC_BASE_URL=http://127.0.0.1:11434/v1
+export FOOD_SEMANTIC_MHRC_MODEL=qwen2.5:3b
+export FOOD_SEMANTIC_MHRC_API_KEY=ollama
+
+export FOOD_SEMANTIC_MHRC_ASYNC_WORKERS=1
+export FOOD_SEMANTIC_MHRC_TIMEOUT=5.0
+export FOOD_SEMANTIC_MHRC_FUSE_FAIL_THRESHOLD=3
+export FOOD_SEMANTIC_MHRC_FUSE_COOLDOWN=15.0
+export FOOD_SEMANTIC_MHRC_STATS_LOG_INTERVAL=30.0
+
+bash run_task5_person_follow_voice.sh
+```
+
+3. No-hardware debug mode is allowed. If camera/serial devices are not connected, logs about waiting for `/cloud_registered` or missing `/dev/ttyUSB0` are expected. Use:
+
+```bash
+bash run_task5_all.sh --person-only
+```
+
+4. After hardware is connected, validate input links:
+
+```bash
+source /opt/ros/noetic/setup.bash
+rostopic info /cloud_registered
+rostopic hz /cloud_registered
+ls -l /dev/ttyUSB0
+```
+
+5. If you also enable the MHRC execution adapter (`26-WrightEagle.AI-MHRC-planning`), configure ACK behavior during bring-up:
+
+```bash
+export MHRC_TASK5_ACK_TIMEOUT=6.0
+export MHRC_TASK5_ACK_REQUIRED=false
+```
+
+Set `MHRC_TASK5_ACK_REQUIRED=true` after `navigate_ack/pick_ack/place_ack` publishers are ready.
+
 ### 6) PointCloud -> OccupancyGrid Bridge (for FAST-LIO / FAR)
 
 If your stack does not provide `/map` or `/move_base/global_costmap/costmap`,

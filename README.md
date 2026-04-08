@@ -259,12 +259,23 @@ bash run_task5_all.sh --check
 - `FOOD_SEMANTIC_BACKEND=ollama`
 - 吧台模糊匹配 `TABLE_FOOD_FUZZY_BACKEND=reuse_order_backend`（复用同一语义通道）
 
+可选：将语义后端切换为 MHRC（`FOOD_SEMANTIC_BACKEND=mhrc`），通过 OpenAI 兼容接口连接本地 Ollama。
+
 启动前建议显式设置：
 
 ```bash
 export FOOD_SEMANTIC_OLLAMA_URL="http://<局域网语义服务器IP>:11434"
 export FOOD_SEMANTIC_OLLAMA_MODEL="llama3.2:3b"
 export FOOD_SEMANTIC_TIMEOUT="8.0"
+```
+
+如果启用 MHRC 后端，建议增加：
+
+```bash
+export FOOD_SEMANTIC_BACKEND="mhrc"
+export FOOD_SEMANTIC_MHRC_BASE_URL="http://<局域网语义服务器IP>:11434/v1"
+export FOOD_SEMANTIC_MHRC_MODEL="qwen2.5:3b"
+export FOOD_SEMANTIC_MHRC_API_KEY="ollama"
 ```
 
 如果你需要完整的远端 Ubuntu20.04 + 40 系 GPU 部署流程，请参考：
@@ -345,6 +356,18 @@ bash run_task5_all.sh -- --example-arg
 
 - `FOOD_SEMANTIC_OLLAMA_URL`
 - `FOOD_SEMANTIC_OLLAMA_MODEL`
+- `FOOD_SEMANTIC_BACKEND`（`ollama` / `command` / `transformers` / `mhrc`）
+- `FOOD_SEMANTIC_MHRC_SRC_DIR`（默认 `task5_person_tracker/../26-WrightEagle.AI-MHRC-planning/src`）
+- `FOOD_SEMANTIC_MHRC_BASE_URL`
+- `FOOD_SEMANTIC_MHRC_API_KEY`
+- `FOOD_SEMANTIC_MHRC_MODEL`
+- `FOOD_SEMANTIC_MHRC_TEMPERATURE`
+- `FOOD_SEMANTIC_MHRC_MAX_TOKENS`
+- `FOOD_SEMANTIC_MHRC_ASYNC_WORKERS`
+- `FOOD_SEMANTIC_MHRC_TIMEOUT`
+- `FOOD_SEMANTIC_MHRC_FUSE_FAIL_THRESHOLD`
+- `FOOD_SEMANTIC_MHRC_FUSE_COOLDOWN`
+- `FOOD_SEMANTIC_MHRC_STATS_LOG_INTERVAL`
 - `FOOD_SEMANTIC_TIMEOUT`
 - `YOLO_PERCEPTION_DIR`（默认相对路径 `../26-WrightEagle.AI-YOLO-Perception`）
 - `TABLE_FOOD_CHECK_DELAY`
@@ -360,13 +383,193 @@ export TABLE_FOOD_CHECK_DELAY="1.2"
 bash run_task5_all.sh
 ```
 
-## 10. 快速排障
+## 10. MHRC 接入实现内容（已落地）
 
-- 语义不工作：检查 `FOOD_SEMANTIC_OLLAMA_URL` 连通（`curl http://<ip>:11434/api/tags`）。
+本仓库已将 MHRC 的关键能力接入到 Task5 链路，当前落地范围如下。
+
+### 10.1 语义层接入（Task5 主状态机内）
+
+- `FOOD_SEMANTIC_BACKEND` 支持 `mhrc`。
+- 点单语义抽取与吧台模糊匹配都可走 MHRC（OpenAI 兼容接口，支持本地 Ollama）。
+- 已加入异步线程池与超时熔断统计，避免语义调用阻塞 ROS 回调路径。
+- 新增参数：`FOOD_SEMANTIC_MHRC_ASYNC_WORKERS`、`FOOD_SEMANTIC_MHRC_TIMEOUT`、`FOOD_SEMANTIC_MHRC_FUSE_FAIL_THRESHOLD`、`FOOD_SEMANTIC_MHRC_FUSE_COOLDOWN`、`FOOD_SEMANTIC_MHRC_STATS_LOG_INTERVAL`。
+
+### 10.2 执行层接入（MHRC -> Task5 ROS）
+
+- 已实现 `Task5ROSAdapter`，将 MHRC 动作映射到 Task5 话题：`navigate` -> `/move_base_simple/goal`，`search` -> `/person_following/search_cmd_vel`，`pick` -> `/person_following/pick_request`，`place` -> `/person_following/place_request`，`speak` -> `/person_following/mhrc_tts_text`（可选走 TTS 模块），`wait` -> 适配器内部等待。
+- 已加入 ROS master 可达性探测，避免在 `roscore` 不在线时阻塞。
+
+### 10.3 动作 ACK 与失败回传
+
+- 已支持 `navigate/pick/place` ACK 通道：`MHRC_TASK5_NAV_ACK_TOPIC`、`MHRC_TASK5_PICK_ACK_TOPIC`、`MHRC_TASK5_PLACE_ACK_TOPIC`。
+- 支持请求唯一 `request_id` 与超时失败回传（`ack_timeout`）。
+- 控制参数：`MHRC_TASK5_ACK_REQUIRED`、`MHRC_TASK5_NAV_ACK_REQUIRED`、`MHRC_TASK5_PICK_ACK_REQUIRED`、`MHRC_TASK5_PLACE_ACK_REQUIRED`、`MHRC_TASK5_ACK_TIMEOUT`。
+
+### 10.4 反馈驱动重规划
+
+- `RobotController` 已接入反馈收集与失败后重规划流程。
+- `Planner.replan(...)` 已可根据执行反馈请求 LLM 生成补救动作。
+- 开关参数（`26-WrightEagle.AI-MHRC-planning/src/config_local.py`）：`ENABLE_REPLAN_ON_FAILURE`、`MAX_REPLAN_ATTEMPTS`。
+
+说明：在外设未接入时，出现“无点云输入、串口缺失、等待目标检测”的日志属于预期现象，不代表接入逻辑异常。
+
+## 11. 部署全流程操作清单（含可选操作）
+
+下面按“首次部署 -> 日常上机 -> 闭环回归”给出完整步骤，覆盖常见可选操作。
+
+### 11.1 首次部署（一次性）
+
+1. 系统依赖：
+
+```bash
+sudo apt update
+sudo apt install -y portaudio19-dev alsa-utils pulseaudio librealsense2-dkms librealsense2-utils librealsense2-dev
+```
+
+2. Python 依赖（根 + Task5 + MHRC）：
+
+```bash
+cd robocup26
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install -r task5_person_tracker/requirements.txt
+pip install -r 26-WrightEagle.AI-MHRC-planning/requirements.txt
+pip install pyrealsense2
+```
+
+### 11.2 每次上机前（基础链路）
+
+1. 启动 ROS 主站：
+
+```bash
+source /opt/ros/noetic/setup.bash
+roscore
+```
+
+2. 新终端检查主站在线：
+
+```bash
+source /opt/ros/noetic/setup.bash
+rostopic list
+```
+
+3. 预检查：
+
+```bash
+cd robocup26
+source .venv/bin/activate
+bash run_task5_all.sh --check
+```
+
+### 11.3 语义后端使用 MHRC（Task5 主流程）
+
+```bash
+cd robocup26
+source .venv/bin/activate
+
+export FOOD_SEMANTIC_BACKEND=mhrc
+export FOOD_SEMANTIC_MHRC_BASE_URL=http://127.0.0.1:11434/v1
+export FOOD_SEMANTIC_MHRC_MODEL=qwen2.5:3b
+export FOOD_SEMANTIC_MHRC_API_KEY=ollama
+
+export FOOD_SEMANTIC_MHRC_ASYNC_WORKERS=1
+export FOOD_SEMANTIC_MHRC_TIMEOUT=5.0
+export FOOD_SEMANTIC_MHRC_FUSE_FAIL_THRESHOLD=3
+export FOOD_SEMANTIC_MHRC_FUSE_COOLDOWN=15.0
+export FOOD_SEMANTIC_MHRC_STATS_LOG_INTERVAL=30.0
+```
+
+### 11.4 MHRC 执行适配器启用（可选，独立规划链路）
+
+1. 修改 `26-WrightEagle.AI-MHRC-planning/src/config_local.py`：
+
+```python
+ENABLE_MOCK = False
+ENABLE_REPLAN_ON_FAILURE = True
+MAX_REPLAN_ATTEMPTS = 1
+```
+
+2. 配置执行与 ACK 话题：
+
+```bash
+export MHRC_TASK5_GOAL_TOPIC=/move_base_simple/goal
+export MHRC_TASK5_SEARCH_TOPIC=/person_following/search_cmd_vel
+export MHRC_TASK5_PICK_TOPIC=/person_following/pick_request
+export MHRC_TASK5_PLACE_TOPIC=/person_following/place_request
+export MHRC_TASK5_SPEAK_TOPIC=/person_following/mhrc_tts_text
+
+export MHRC_TASK5_NAV_ACK_TOPIC=/person_following/navigate_ack
+export MHRC_TASK5_PICK_ACK_TOPIC=/person_following/pick_ack
+export MHRC_TASK5_PLACE_ACK_TOPIC=/person_following/place_ack
+export MHRC_TASK5_ACK_TIMEOUT=6.0
+
+# 联调早期如未实现 ACK 消费端，可先关闭 ACK 强制
+export MHRC_TASK5_ACK_REQUIRED=false
+```
+
+3. 运行 MHRC 侧：
+
+```bash
+cd robocup26/26-WrightEagle.AI-MHRC-planning/src
+python3 main.py
+```
+
+### 11.5 无外设场景（允许）
+
+外设未接入时可做“软件链路联调”，出现以下日志属正常：
+
+- 等待 `/cloud_registered`
+- `/person_following/occupancy_grid` 暂无数据
+- 串口设备 `/dev/ttyUSB0` 不存在或重连
+
+这种情况下建议使用：
+
+```bash
+bash run_task5_all.sh --person-only
+```
+
+### 11.6 实机闭环回归（外设接入后）
+
+1. 确认 RealSense 设备：
+
+```bash
+lsusb | grep -i intel
+rs-enumerate-devices
+```
+
+2. 确认点云输入稳定：
+
+```bash
+source /opt/ros/noetic/setup.bash
+rostopic info /cloud_registered
+rostopic hz /cloud_registered
+```
+
+3. 确认底盘串口存在：
+
+```bash
+ls -l /dev/ttyUSB0
+```
+
+4. 启动全链路：
+
+```bash
+cd robocup26
+source .venv/bin/activate
+bash run_task5_all.sh
+```
+
+## 12. 快速排障
+
+- 语义不工作：检查 `FOOD_SEMANTIC_MHRC_BASE_URL` 或 `FOOD_SEMANTIC_OLLAMA_URL` 连通（`curl http://<ip>:11434/api/tags`）。
+- MHRC 语义频繁失败：调大 `FOOD_SEMANTIC_MHRC_TIMEOUT`，并查看熔断统计日志是否持续打开。
 - 检测未触发：确认 RealSense 与 `realsenseinfer.py` 可运行。
 - 不发布跟随目标：确认 `/person/base_link_3d_position` 持续更新。
 - 不转向/不移动：检查 `/cmd_vel_nav` 与仲裁输出 `/cmd_vel`。
 - 地图碰撞检查异常：确认 `/cloud_registered` 正常并生成 `/person_following/occupancy_grid`。
+- MHRC 执行一直失败且报 `ack_timeout`：临时联调可设 `MHRC_TASK5_ACK_REQUIRED=false`；或者补齐 `navigate_ack/pick_ack/place_ack` 回执发布链路。
 
 ---
 
