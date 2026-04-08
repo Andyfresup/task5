@@ -18,7 +18,7 @@ This project implements a **single-robot variant of the MHRC framework** specifi
 | **Observation** | Collects information from navigation, perception, and manipulation components. | ✅ Basic Implementation |
 | **Memory** | Records task execution history and feedback from the environment. | ✅ Basic Implementation |
 | **Planning** | LLM-based task decomposition into predefined action sequences. | ✅ Complete Implementation |
-| **Execution** | Action execution, status monitoring, and feedback collection. | ✅ Mock Implementation |
+| **Execution** | Action execution, status monitoring, and feedback collection. | ✅ Mock + Task5 ROS adapter |
 
 ---
 
@@ -60,11 +60,6 @@ LLM/
 ### 1. Environment Setup
 
 **Using the automated setup script (Recommended):**
-
-```bash
-# Clone repository
-git clone https://github.com/USTC-WrightEagle-AI/LLM.git
-cd LLM
 
 ```bash
 # Clone repository
@@ -137,6 +132,109 @@ python main.py --demo
 # Debug mode
 python main.py --mode debug
 ```
+
+### 3.1 Enable Task5 ROS Execution Adapter
+
+By default, MHRC runs with `MockRobot`. To route actions to Task5 ROS topics:
+
+1. Set `ENABLE_MOCK = False` in `src/config_local.py`.
+2. Ensure ROS1 runtime and Task5 topics are available.
+3. Optionally tune adapter topics via environment variables:
+
+```bash
+export MHRC_TASK5_GOAL_TOPIC=/move_base_simple/goal
+export MHRC_TASK5_SEARCH_TOPIC=/person_following/search_cmd_vel
+export MHRC_TASK5_SPEAK_TOPIC=/person_following/mhrc_tts_text
+export MHRC_TASK5_PICK_TOPIC=/person_following/pick_request
+export MHRC_TASK5_PLACE_TOPIC=/person_following/place_request
+
+# ACK channels + timeout failure reporting
+export MHRC_TASK5_NAV_ACK_TOPIC=/person_following/navigate_ack
+export MHRC_TASK5_PICK_ACK_TOPIC=/person_following/pick_ack
+export MHRC_TASK5_PLACE_ACK_TOPIC=/person_following/place_ack
+export MHRC_TASK5_ACK_TIMEOUT=6.0
+export MHRC_TASK5_ACK_REQUIRED=true
+```
+
+Optional location map override:
+
+```bash
+export MHRC_TASK5_LOCATION_MAP_JSON='{"bar":[0.0,0.0,0.0],"table":[4.2,1.1,1.57]}'
+```
+
+Replanning controls (in `src/config_local.py`):
+
+```python
+ENABLE_REPLAN_ON_FAILURE = True
+MAX_REPLAN_ATTEMPTS = 1
+```
+
+### 3.2 Task5 Integration Features (Implemented)
+
+The current codebase already includes these Task5-facing capabilities:
+
+- A ROS execution adapter (`Task5ROSAdapter`) that maps MHRC actions to Task5 topics.
+- ROS master reachability check before node initialization to avoid long blocking when `roscore` is down.
+- ACK-based action confirmation for `navigate/pick/place` with request ID matching.
+- Timeout failure reporting (`ack_timeout`) for missing ACK responses.
+- Feedback-driven replanning path in `RobotController` + `Planner.replan(...)`.
+
+### 3.3 Task5 Deployment Checklist (End-to-End)
+
+Use this sequence when integrating MHRC with the Task5 runtime under `robocup26/`.
+
+1. Start ROS master:
+
+```bash
+source /opt/ros/noetic/setup.bash
+roscore
+```
+
+2. Run baseline health check from workspace root:
+
+```bash
+cd robocup26
+source .venv/bin/activate
+bash run_task5_all.sh --check
+```
+
+3. Configure adapter topics and ACK policy:
+
+```bash
+export MHRC_TASK5_GOAL_TOPIC=/move_base_simple/goal
+export MHRC_TASK5_SEARCH_TOPIC=/person_following/search_cmd_vel
+export MHRC_TASK5_SPEAK_TOPIC=/person_following/mhrc_tts_text
+export MHRC_TASK5_PICK_TOPIC=/person_following/pick_request
+export MHRC_TASK5_PLACE_TOPIC=/person_following/place_request
+
+export MHRC_TASK5_NAV_ACK_TOPIC=/person_following/navigate_ack
+export MHRC_TASK5_PICK_ACK_TOPIC=/person_following/pick_ack
+export MHRC_TASK5_PLACE_ACK_TOPIC=/person_following/place_ack
+export MHRC_TASK5_ACK_TIMEOUT=6.0
+
+# Set to false during early bring-up if ACK publishers are not ready yet.
+export MHRC_TASK5_ACK_REQUIRED=false
+```
+
+4. Run MHRC controller:
+
+```bash
+cd robocup26/26-WrightEagle.AI-MHRC-planning/src
+python3 main.py
+```
+
+5. If external devices are not connected, logs about waiting for `/cloud_registered` or missing `/dev/ttyUSB0` are expected and do not indicate adapter failure.
+
+6. After hardware is connected, validate input links:
+
+```bash
+source /opt/ros/noetic/setup.bash
+rostopic info /cloud_registered
+rostopic hz /cloud_registered
+ls -l /dev/ttyUSB0
+```
+
+For Task5 semantic parsing via MHRC, set `FOOD_SEMANTIC_BACKEND=mhrc` in `task5_person_tracker` launcher environment.
 
 ### 4. Example Commands
 
