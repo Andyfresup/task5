@@ -232,9 +232,9 @@ def build_case_specs(suite: str) -> List[CaseSpec]:
         CaseSpec("A1_IDLE_ALLOW", True, "", setup_mode="debug_state", active_state="IDLE", return_state="IDLE"),
         CaseSpec("A2_LOCKED_DENY", False, "busy_service_workflow", setup_mode="active_folder"),
         CaseSpec(
-            "A3_LOCKED_ALLOW",
-            True,
-            "",
+            "A3_LOCKED_HARD_DENY",
+            False,
+            "busy_service_workflow",
             setup_mode="active_folder",
             gate_overrides={"mhrc_nav_allow_locked": True},
         ),

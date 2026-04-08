@@ -18,6 +18,14 @@ if [[ ! -f "$SPEECH_ASR_FILE" ]]; then
     USE_SPEECH_ASR_MODULE=false
 fi
 
+PAUSE_REPLY_TOPIC="${PAUSE_REPLY_TOPIC:-/person_following/pause_reply_text}"
+PAUSE_REPLY_MIC_NAME="${PAUSE_REPLY_MIC_NAME:-Newmine}"
+PAUSE_REPLY_LISTEN_ENABLED="${PAUSE_REPLY_LISTEN_ENABLED:-false}"
+PAUSE_REPLY_TEXT_INPUT_ENABLED="${PAUSE_REPLY_TEXT_INPUT_ENABLED:-true}"
+SPEECH_ASR_MIC_NAME="${SPEECH_ASR_MIC_NAME:-$PAUSE_REPLY_MIC_NAME}"
+SPEECH_ASR_OUTPUT_TOPIC="${SPEECH_ASR_OUTPUT_TOPIC:-$PAUSE_REPLY_TOPIC}"
+SPEECH_ASR_STANDALONE_ENABLED="${SPEECH_ASR_STANDALONE_ENABLED:-true}"
+
 if [[ -z "${DETECTION_ENABLE_VOICE:-}" ]]; then
     if [[ "${USE_SPEECH_ASR_MODULE}" == "true" ]]; then
         DETECTION_ENABLE_VOICE=false
@@ -49,6 +57,9 @@ FOOD_SEMANTIC_MHRC_STATS_LOG_INTERVAL="${FOOD_SEMANTIC_MHRC_STATS_LOG_INTERVAL:-
 PAUSE_PROMPT_USE_MHRC_SPEAK="${PAUSE_PROMPT_USE_MHRC_SPEAK:-true}"
 PAUSE_PROMPT_MHRC_SPEAK_TOPIC="${PAUSE_PROMPT_MHRC_SPEAK_TOPIC:-/person_following/mhrc_tts_text}"
 PAUSE_PROMPT_MHRC_REQUIRE_SUBSCRIBER="${PAUSE_PROMPT_MHRC_REQUIRE_SUBSCRIBER:-true}"
+TASK5_SPEAK_PRIORITY_HIGHER="${TASK5_SPEAK_PRIORITY_HIGHER:-true}"
+MHRC_SPEAK_BRIDGE_ENABLED="${MHRC_SPEAK_BRIDGE_ENABLED:-true}"
+MHRC_SPEAK_BRIDGE_TOPIC="${MHRC_SPEAK_BRIDGE_TOPIC:-$PAUSE_PROMPT_MHRC_SPEAK_TOPIC}"
 NAVIGATE_REQUEST_TOPIC="${NAVIGATE_REQUEST_TOPIC:-/person_following/navigate_request}"
 NAVIGATE_ACK_TOPIC="${NAVIGATE_ACK_TOPIC:-/person_following/navigate_ack}"
 MHRC_NAV_STATE_GATING_ENABLED="${MHRC_NAV_STATE_GATING_ENABLED:-true}"
@@ -147,6 +158,9 @@ python3 person_following/person_goal_publisher.py \
     _pause_prompt_use_mhrc_speak:=${PAUSE_PROMPT_USE_MHRC_SPEAK} \
     _pause_prompt_mhrc_speak_topic:=${PAUSE_PROMPT_MHRC_SPEAK_TOPIC} \
     _pause_prompt_mhrc_require_subscriber:=${PAUSE_PROMPT_MHRC_REQUIRE_SUBSCRIBER} \
+    _pause_prompt_task5_priority_higher:=${TASK5_SPEAK_PRIORITY_HIGHER} \
+    _mhrc_speak_bridge_enabled:=${MHRC_SPEAK_BRIDGE_ENABLED} \
+    _mhrc_speak_bridge_topic:=${MHRC_SPEAK_BRIDGE_TOPIC} \
     _navigate_request_topic:=${NAVIGATE_REQUEST_TOPIC} \
     _navigate_ack_topic:=${NAVIGATE_ACK_TOPIC} \
     _mhrc_nav_state_gating_enabled:=${MHRC_NAV_STATE_GATING_ENABLED} \
@@ -158,16 +172,18 @@ python3 person_following/person_goal_publisher.py \
     _mhrc_nav_debug_state_override_topic:=${MHRC_NAV_DEBUG_STATE_OVERRIDE_TOPIC} \
     _pause_prompt_use_speech_module:=${USE_SPEECH_MODULE} \
     _pause_prompt_speech_module_file:=${SPEECH_MODULE_FILE} \
-    _pause_reply_listen_enabled:=true \
+    _pause_reply_listen_enabled:=${PAUSE_REPLY_LISTEN_ENABLED} \
+    _pause_reply_text_input_enabled:=${PAUSE_REPLY_TEXT_INPUT_ENABLED} \
     _pause_reply_use_speech_module:=${USE_SPEECH_ASR_MODULE} \
     _pause_reply_speech_module_file:=${SPEECH_ASR_FILE} \
+    _pause_reply_mic_name:=${PAUSE_REPLY_MIC_NAME} \
     _pause_reply_timeout:=6.0 \
     _pause_reply_start_delay:=1.2 \
     _pause_reply_reask_on_unrecognized:=true \
     _pause_reply_reask_text:="Can I beg you a pardon?" \
     _pause_reply_reask_max_attempts:=1 \
     _pause_reply_reask_listen_delay:=1.1 \
-    _pause_reply_topic:=/person_following/pause_reply_text \
+    _pause_reply_topic:=${PAUSE_REPLY_TOPIC} \
     _food_order_enabled:=true \
     _food_order_json_file:=${FOOD_ORDER_JSON_FILE} \
     _food_order_confirm_enabled:=true \
@@ -219,6 +235,18 @@ python3 person_following/person_goal_publisher.py \
     _food_semantic_mhrc_stats_log_interval:=${FOOD_SEMANTIC_MHRC_STATS_LOG_INTERVAL} \
     _run_rate_hz:=20.0 &
  pids+=("$!")
+
+if [[ "${SPEECH_ASR_STANDALONE_ENABLED}" == "true" && "${USE_SPEECH_ASR_MODULE}" == "true" ]]; then
+    if python3 -c "import pyaudio, resampy, faster_whisper, silero_vad" >/dev/null 2>&1; then
+        python3 "$SPEECH_ASR_FILE" \
+            --mic-name "$SPEECH_ASR_MIC_NAME" \
+            --ros-topic "$SPEECH_ASR_OUTPUT_TOPIC" \
+            --ros-node-name task5_speech_asr_input &
+        pids+=("$!")
+    else
+        echo "[WARN] Speech ASR standalone disabled: missing Python deps (pyaudio/resampy/faster_whisper/silero_vad)"
+    fi
+fi
 
 python3 person_following/cmd_vel_arbiter.py \
      _search_topic:=/person_following/search_cmd_vel \

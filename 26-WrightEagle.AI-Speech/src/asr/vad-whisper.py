@@ -1,4 +1,8 @@
+import argparse
+import os
+import sys
 import wave
+
 import numpy as np
 import pyaudio
 import resampy
@@ -6,9 +10,21 @@ from faster_whisper import WhisperModel
 import torch
 import torchaudio
 from silero_vad import load_silero_vad, VADIterator
-import collections
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from config.config import *
+
+try:
+    import rospy
+    from std_msgs.msg import String as RosString
+except Exception:
+    rospy = None
+    RosString = None
+
+
 WHISPER_MODEL = WHISPER_SMALL
 
 # ============= Find specified microphone =============
@@ -27,8 +43,20 @@ def find_input_device(name_part: str):
 
 
 class SpeechRecognizer:
-    def __init__(self, mic_name="Newmine"):
+    def __init__(
+        self,
+        mic_name="Newmine",
+        ros_topic="/person_following/pause_reply_text",
+        ros_publish_enabled=True,
+        ros_node_name="speech_asr_listener",
+    ):
         self.model_path = WHISPER_MODEL
+        self.ros_topic = ros_topic
+        self.ros_publish_enabled = bool(ros_publish_enabled)
+        self.ros_node_name = ros_node_name
+        self.ros_pub = None
+
+        self._setup_ros_publisher()
 
         print("Loading Whisper model...")
         self.model = WhisperModel(
@@ -84,12 +112,42 @@ class SpeechRecognizer:
 
         # Status tracking
         self.is_speaking = False
+
+    def _setup_ros_publisher(self):
+        if not self.ros_publish_enabled:
+            return
+
+        if rospy is None or RosString is None:
+            print("⚠ ROS is unavailable, ASR text will not be published")
+            return
+
+        try:
+            if not rospy.core.is_initialized():
+                rospy.init_node(self.ros_node_name, anonymous=True, disable_signals=True)
+            self.ros_pub = rospy.Publisher(self.ros_topic, RosString, queue_size=20)
+            rospy.sleep(0.1)
+            print(f"✓ ASR text topic publisher ready: {self.ros_topic}")
+        except Exception as exc:
+            self.ros_pub = None
+            print(f"⚠ Failed to initialize ROS publisher: {exc}")
+
+    def _publish_text(self, text: str):
+        if self.ros_pub is None:
+            return
+        try:
+            self.ros_pub.publish(RosString(data=text))
+        except Exception as exc:
+            print(f"⚠ Failed to publish ASR text: {exc}")
+
     # ============= Main loop =============
     def start_listening(self):
         print("Starting real-time speech recognition (Silero VAD)...\n")
 
         try:
             while True:
+                if rospy is not None and rospy.core.is_initialized() and rospy.is_shutdown():
+                    break
+
                 # Read frame by frame
                 data = self.stream.read(self.frame_samples_device, exception_on_overflow=False)
                 # Save to wav
@@ -161,6 +219,7 @@ class SpeechRecognizer:
         text = "".join(seg.text.strip() + " " for seg in segments).strip()
         if text:
             print("Recognition:", text)
+            self._publish_text(text)
 
     # ============= Clean up resources =============
     def cleanup(self):
@@ -171,5 +230,33 @@ class SpeechRecognizer:
         print("Recording saved as recorded_audio.wav")
 
 if __name__ == "__main__":
-    recognizer = SpeechRecognizer("Newmine")
+    parser = argparse.ArgumentParser(description="Speech ASR listener with optional ROS text publishing")
+    parser.add_argument(
+        "--mic-name",
+        default="Newmine",
+        help="Microphone name substring used for device matching",
+    )
+    parser.add_argument(
+        "--ros-topic",
+        default="/person_following/pause_reply_text",
+        help="ROS topic for publishing recognized ASR text",
+    )
+    parser.add_argument(
+        "--ros-node-name",
+        default="speech_asr_listener",
+        help="ROS node name used by standalone ASR publisher",
+    )
+    parser.add_argument(
+        "--no-ros-publish",
+        action="store_true",
+        help="Disable ROS topic publishing and only print ASR text",
+    )
+    args = parser.parse_args()
+
+    recognizer = SpeechRecognizer(
+        mic_name=args.mic_name,
+        ros_topic=args.ros_topic,
+        ros_publish_enabled=not args.no_ros_publish,
+        ros_node_name=args.ros_node_name,
+    )
     recognizer.start_listening()

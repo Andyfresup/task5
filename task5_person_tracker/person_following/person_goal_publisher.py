@@ -111,6 +111,18 @@ class PersonGoalPublisher:
             "~pause_prompt_mhrc_require_subscriber",
             True,
         )
+        self.pause_prompt_task5_priority_higher = rospy.get_param(
+            "~pause_prompt_task5_priority_higher",
+            True,
+        )
+        self.mhrc_speak_bridge_enabled = rospy.get_param(
+            "~mhrc_speak_bridge_enabled",
+            True,
+        )
+        self.mhrc_speak_bridge_topic = rospy.get_param(
+            "~mhrc_speak_bridge_topic",
+            self.pause_prompt_mhrc_speak_topic,
+        )
         self.pause_prompt_command = rospy.get_param("~pause_prompt_command", "")
         self.pause_prompt_use_shell = rospy.get_param("~pause_prompt_use_shell", False)
         self.pause_prompt_cooldown = rospy.get_param("~pause_prompt_cooldown", 2.0)
@@ -144,7 +156,7 @@ class PersonGoalPublisher:
                 "vad-whisper.py",
             )
         )
-        self.pause_reply_listen_enabled = rospy.get_param("~pause_reply_listen_enabled", True)
+        self.pause_reply_listen_enabled = rospy.get_param("~pause_reply_listen_enabled", False)
         self.pause_reply_use_speech_module = rospy.get_param("~pause_reply_use_speech_module", True)
         self.pause_reply_speech_module_file = rospy.get_param(
             "~pause_reply_speech_module_file",
@@ -159,6 +171,7 @@ class PersonGoalPublisher:
         self.pause_reply_beam_size = rospy.get_param("~pause_reply_beam_size", 5)
         self.pause_reply_cooldown = rospy.get_param("~pause_reply_cooldown", 2.0)
         self.pause_reply_topic = rospy.get_param("~pause_reply_topic", "/person_following/pause_reply_text")
+        self.pause_reply_text_input_enabled = rospy.get_param("~pause_reply_text_input_enabled", True)
         self.pause_reply_reask_on_unrecognized = rospy.get_param("~pause_reply_reask_on_unrecognized", True)
         self.pause_reply_reask_text = rospy.get_param(
             "~pause_reply_reask_text",
@@ -483,11 +496,25 @@ class PersonGoalPublisher:
         rospy.Subscriber(self.map_topic, OccupancyGrid, self.map_callback, queue_size=1)
         rospy.Subscriber(self.active_customer_folder_topic, String, self.active_customer_folder_callback, queue_size=1)
         rospy.Subscriber(self.navigate_request_topic, String, self.navigate_request_callback, queue_size=20)
+        if self.mhrc_speak_bridge_enabled and self.mhrc_speak_bridge_topic:
+            rospy.Subscriber(
+                self.mhrc_speak_bridge_topic,
+                String,
+                self.mhrc_speak_callback,
+                queue_size=20,
+            )
         if self.mhrc_nav_debug_state_override_enabled and self.mhrc_nav_debug_state_override_topic:
             rospy.Subscriber(
                 self.mhrc_nav_debug_state_override_topic,
                 String,
                 self.debug_state_override_callback,
+                queue_size=20,
+            )
+        if self.pause_reply_text_input_enabled and self.pause_reply_topic:
+            rospy.Subscriber(
+                self.pause_reply_topic,
+                String,
+                self.pause_reply_topic_callback,
                 queue_size=20,
             )
         rospy.on_shutdown(self._on_shutdown)
@@ -510,12 +537,15 @@ class PersonGoalPublisher:
         self.latest_person_base_y = None
         self.latest_person_base_time = rospy.Time(0)
         self.last_pause_prompt_time = rospy.Time(0)
+        self.last_local_mhrc_prompt_text = ""
+        self.last_local_mhrc_prompt_mono = 0.0
         self.pause_speech_tts = None
         self.pause_speech_load_attempted = False
         self.pause_speech_lock = threading.Lock()
         self.pause_speech_asr = None
         self.pause_asr_load_attempted = False
         self.pause_asr_lock = threading.Lock()
+        self.pause_reply_topic_lock = threading.Lock()
         self.pause_reply_thread = None
         self.last_pause_reply_time = rospy.Time(0)
         self.food_order_lock = threading.Lock()
@@ -754,6 +784,34 @@ class PersonGoalPublisher:
         active_state = str(self.active_customer_state or "IDLE").strip().upper()
         return_state = str(self.return_navigation_state or "IDLE").strip().upper()
 
+        # Hard isolation rule: while Task5 is inside service workflow states,
+        # MHRC navigate requests must not take over navigation writes.
+        workflow_states = (
+            "LOCKED",
+            "TRACKING",
+            "PAUSED_ORDERING",
+            "ORDERED",
+            "RETURNING",
+            "TABLE_APPROACH",
+            "AT_TABLE_FRONT",
+        )
+
+        if return_state != "IDLE":
+            return {
+                "allowed": False,
+                "error_code": "busy_returning_navigation",
+                "message": f"Task5 return navigation active ({return_state})",
+                "recommendation": "wait_and_retry",
+            }
+
+        if active_state in workflow_states:
+            return {
+                "allowed": False,
+                "error_code": "busy_service_workflow",
+                "message": f"Task5 active workflow state {active_state}",
+                "recommendation": "replan_wait_or_speak",
+            }
+
         if self.mhrc_nav_force_accept:
             return {
                 "allowed": True,
@@ -770,44 +828,12 @@ class PersonGoalPublisher:
                 "recommendation": "",
             }
 
-        if return_state != "IDLE":
-            return {
-                "allowed": False,
-                "error_code": "busy_returning_navigation",
-                "message": f"Task5 return navigation active ({return_state})",
-                "recommendation": "wait_and_retry",
-            }
-
         if active_state == "IDLE":
             return {
                 "allowed": True,
                 "error_code": "",
                 "message": "allowed_in_idle",
                 "recommendation": "",
-            }
-
-        if self.mhrc_nav_allow_locked and active_state == "LOCKED":
-            return {
-                "allowed": True,
-                "error_code": "",
-                "message": "allowed_in_locked",
-                "recommendation": "",
-            }
-
-        if active_state in (
-            "LOCKED",
-            "TRACKING",
-            "PAUSED_ORDERING",
-            "ORDERED",
-            "RETURNING",
-            "TABLE_APPROACH",
-            "AT_TABLE_FRONT",
-        ):
-            return {
-                "allowed": False,
-                "error_code": "busy_service_workflow",
-                "message": f"Task5 active workflow state {active_state}",
-                "recommendation": "replan_wait_or_speak",
             }
 
         return {
@@ -3060,7 +3086,13 @@ class PersonGoalPublisher:
                 spec.loader.exec_module(module)
 
                 asr_cls = getattr(module, self.pause_reply_speech_class)
-                asr_obj = asr_cls(self.pause_reply_mic_name)
+                try:
+                    asr_obj = asr_cls(
+                        self.pause_reply_mic_name,
+                        ros_publish_enabled=False,
+                    )
+                except TypeError:
+                    asr_obj = asr_cls(self.pause_reply_mic_name)
 
                 stream = getattr(asr_obj, "stream", None)
                 vad_iterator = getattr(asr_obj, "vad_iterator", None)
@@ -3171,14 +3203,14 @@ class PersonGoalPublisher:
 
         return ""
 
-    def _process_pause_reply_text(self, text):
+    def _process_pause_reply_text(self, text, publish_topic=True):
         if not text:
             return False
 
         self._resolve_active_customer_folder()
 
         rospy.loginfo("Pause reply recognized: %s", text)
-        if self.pause_reply_pub is not None:
+        if publish_topic and self.pause_reply_pub is not None:
             self.pause_reply_pub.publish(String(data=text))
 
         food_summary, food_mentions = self._extract_food_items(text)
@@ -3278,7 +3310,77 @@ class PersonGoalPublisher:
             self.pause_speech_asr = None
             self.pause_asr_load_attempted = False
 
-    def _announce_text_prompt(self, text, force=False):
+    def _publish_prompt_to_mhrc_topic(self, text):
+        if self.pause_prompt_mhrc_pub is None:
+            return False
+
+        try:
+            if self.pause_prompt_mhrc_require_subscriber:
+                min_connections = 1
+                if (
+                    self.mhrc_speak_bridge_enabled
+                    and self.mhrc_speak_bridge_topic == self.pause_prompt_mhrc_speak_topic
+                ):
+                    # One connection can be this node's own bridge subscriber.
+                    min_connections = 2
+
+                if self.pause_prompt_mhrc_pub.get_num_connections() < min_connections:
+                    rospy.logwarn_throttle(
+                        5.0,
+                        "MHRC speak topic has no external subscribers: %s",
+                        self.pause_prompt_mhrc_speak_topic,
+                    )
+                    return False
+
+            self.pause_prompt_mhrc_pub.publish(String(data=text))
+            self.last_local_mhrc_prompt_text = text
+            self.last_local_mhrc_prompt_mono = time.monotonic()
+            return True
+        except Exception as exc:
+            rospy.logwarn("Failed to publish MHRC speak prompt: %s", exc)
+            return False
+
+    def mhrc_speak_callback(self, msg):
+        text = str(msg.data or "").strip()
+        if not text:
+            return
+
+        try:
+            header = getattr(msg, "_connection_header", {}) or {}
+            caller_id = str(header.get("callerid") or "").strip()
+        except Exception:
+            caller_id = ""
+
+        # Ignore loopback from this node and recently mirrored same-text publishes.
+        if caller_id == rospy.get_name():
+            return
+        if (
+            text == self.last_local_mhrc_prompt_text
+            and (time.monotonic() - self.last_local_mhrc_prompt_mono) < 1.0
+        ):
+            return
+
+        self._announce_text_prompt(text, force=True, source="mhrc_bridge")
+
+    def pause_reply_topic_callback(self, msg):
+        text = str(msg.data or "").strip()
+        if not text:
+            return
+
+        try:
+            header = getattr(msg, "_connection_header", {}) or {}
+            caller_id = str(header.get("callerid") or "").strip()
+        except Exception:
+            caller_id = ""
+
+        # Ignore self-published loopback when internal ASR mode is enabled.
+        if caller_id == rospy.get_name():
+            return
+
+        with self.pause_reply_topic_lock:
+            self._process_pause_reply_text(text, publish_topic=False)
+
+    def _announce_text_prompt(self, text, force=False, source="task5"):
         if not self.pause_prompt_enabled:
             return False
 
@@ -3292,31 +3394,29 @@ class PersonGoalPublisher:
                 return False
 
         announced = False
+        prefer_task5 = bool(self.pause_prompt_task5_priority_higher or source == "mhrc_bridge")
+        allow_mhrc_publish = source != "mhrc_bridge"
 
-        if self.pause_prompt_mhrc_pub is not None:
-            try:
-                if self.pause_prompt_mhrc_require_subscriber:
-                    if self.pause_prompt_mhrc_pub.get_num_connections() <= 0:
-                        rospy.logwarn_throttle(
-                            5.0,
-                            "MHRC speak topic has no subscribers: %s",
-                            self.pause_prompt_mhrc_speak_topic,
-                        )
-                    else:
-                        self.pause_prompt_mhrc_pub.publish(String(data=text))
-                        announced = True
-                else:
-                    self.pause_prompt_mhrc_pub.publish(String(data=text))
-                    announced = True
-            except Exception as exc:
-                rospy.logwarn("Failed to publish MHRC speak prompt: %s", exc)
+        if prefer_task5:
+            if self.pause_prompt_use_speech_module:
+                announced = self._speak_with_pause_speech_module(text)
 
-        if not announced and self.pause_prompt_use_speech_module:
-            announced = self._speak_with_pause_speech_module(text)
+            if not announced and self.pause_prompt_pub is not None:
+                self.pause_prompt_pub.publish(String(data=text))
+                announced = True
 
-        if not announced and self.pause_prompt_pub is not None:
-            self.pause_prompt_pub.publish(String(data=text))
-            announced = True
+            if not announced and allow_mhrc_publish:
+                announced = self._publish_prompt_to_mhrc_topic(text)
+        else:
+            if allow_mhrc_publish:
+                announced = self._publish_prompt_to_mhrc_topic(text)
+
+            if not announced and self.pause_prompt_use_speech_module:
+                announced = self._speak_with_pause_speech_module(text)
+
+            if not announced and self.pause_prompt_pub is not None:
+                self.pause_prompt_pub.publish(String(data=text))
+                announced = True
 
         if not announced and self.pause_prompt_command:
             try:

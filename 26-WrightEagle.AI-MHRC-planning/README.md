@@ -129,6 +129,9 @@ python main.py --test
 # Demo mode
 python main.py --demo
 
+# ROS speech-topic input mode
+python main.py --ros-input --speech-topic /person_following/pause_reply_text
+
 # Debug mode
 python main.py --mode debug
 ```

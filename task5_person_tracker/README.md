@@ -263,13 +263,34 @@ export MHRC_NAV_ALLOW_LOCKED=false
 export MHRC_NAV_REQUEST_TTL=30.0
 export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=false
 export MHRC_NAV_DEBUG_STATE_OVERRIDE_TOPIC=/person_following/debug_state_override
+export TASK5_SPEAK_PRIORITY_HIGHER=true
+export MHRC_SPEAK_BRIDGE_ENABLED=true
+export MHRC_SPEAK_BRIDGE_TOPIC=/person_following/mhrc_tts_text
+
+# Unified speech-text upstream (Speech ASR -> topic -> Task5 + MHRC)
+export PAUSE_REPLY_TOPIC=/person_following/pause_reply_text
+export PAUSE_REPLY_LISTEN_ENABLED=false
+export PAUSE_REPLY_TEXT_INPUT_ENABLED=true
+export SPEECH_ASR_STANDALONE_ENABLED=true
+export SPEECH_ASR_OUTPUT_TOPIC=/person_following/pause_reply_text
 ```
+
+Then run MHRC in ROS text-input mode to consume the same upstream text topic:
+
+```bash
+cd /home/andy/robocup26/26-WrightEagle.AI-MHRC-planning/src
+python3 main.py --ros-input --speech-topic /person_following/pause_reply_text
+```
+
+Workflow isolation note: while Task5 is in service workflow states (`LOCKED/TRACKING/PAUSED_ORDERING/ORDERED/RETURNING/TABLE_APPROACH/AT_TABLE_FRONT`), MHRC `navigate` requests are hard-rejected and do not take over Task5 navigation publishing.
 
 Debug-only overrides for matrix testing:
 
 ```bash
 export MHRC_TASK5_ACK_REQUIRED=false
 export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=true
+export TASK5_SPEAK_PRIORITY_HIGHER=true
+export MHRC_SPEAK_BRIDGE_ENABLED=true
 ```
 
 6. Run Task5 navigate gate matrix cases (state injection + boundary checks):
