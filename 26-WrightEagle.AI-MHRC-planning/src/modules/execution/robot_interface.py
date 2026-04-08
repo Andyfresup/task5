@@ -28,6 +28,12 @@ class RobotInterface(ABC):
         self.state = RobotState.IDLE
         self.current_position: Optional[str] = None
         self.holding_object: Optional[str] = None
+        self.last_action_result = {
+            "action": "",
+            "success": True,
+            "error": "",
+            "data": {},
+        }
 
     @abstractmethod
     def navigate(self, target) -> bool:
@@ -116,3 +122,17 @@ class RobotInterface(ABC):
     def set_state(self, state: RobotState):
         """Set state"""
         self.state = state
+
+    def set_last_action_result(self, action: str, success: bool, error: str = "", data: Optional[dict] = None):
+        """Store latest action result for controller-side feedback and replanning."""
+        self.last_action_result = {
+            "action": str(action),
+            "success": bool(success),
+            "error": str(error or ""),
+            "data": data or {},
+        }
+        return self.last_action_result
+
+    def get_last_action_result(self) -> dict:
+        """Get latest action result snapshot."""
+        return dict(self.last_action_result)
