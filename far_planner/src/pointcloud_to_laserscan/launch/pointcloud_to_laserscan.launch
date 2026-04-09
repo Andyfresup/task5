@@ -1,0 +1,17 @@
+<?xml version="1.1"?>
+<launch>
+    <arg name="pointcloud_topic" default="/livox/lidar"/>
+
+    <node pkg="pointcloud_to_laserscan" type="pointcloud_to_laserscan_node" name="pointcloud_to_laserscan" output="screen">
+        <param name="pointcloud_topic" value="$(arg pointcloud_topic)"/>
+        <param name="target_frame" value="base_link_fusion"/>
+        <param name="min_height" value="0.1"/>
+        <param name="max_height" value="0.8"/>
+        <param name="range_min" value="0.5"/>
+        <param name="range_max" value="50"/>
+        <param name="use_inf" value="true"/>
+        <param name="inf_epsilon" value="1.0"/>
+        <param name="concurrency_level" value="1"/>
+    </node>
+
+</launch>

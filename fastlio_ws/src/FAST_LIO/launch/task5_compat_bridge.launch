@@ -1,0 +1,124 @@
+<launch>
+    <!-- Topic bridge switches -->
+    <arg name="enable_cloud_to_jh_cloud" default="true"/>
+    <arg name="enable_odometry_to_odom" default="true"/>
+    <arg name="enable_cloud_to_scan" default="true"/>
+
+    <!-- Topic names -->
+    <arg name="cloud_registered_topic" default="/cloud_registered"/>
+    <arg name="jh_cloud_topic" default="/jh_cloud"/>
+    <arg name="odometry_topic" default="/Odometry"/>
+    <arg name="odom_topic" default="/odom"/>
+    <arg name="scan_topic" default="/scan"/>
+
+    <!-- cloud -> scan params -->
+    <arg name="scan_target_frame" default="base_link_fusion"/>
+    <arg name="scan_min_height" default="0.10"/>
+    <arg name="scan_max_height" default="0.80"/>
+    <arg name="scan_range_min" default="0.50"/>
+    <arg name="scan_range_max" default="50.0"/>
+    <arg name="scan_use_inf" default="true"/>
+    <arg name="scan_inf_epsilon" default="1.0"/>
+    <arg name="scan_concurrency_level" default="1"/>
+    <arg name="scan_transform_tolerance" default="0.05"/>
+
+    <!-- TF compatibility switches -->
+    <arg name="enable_tf_map_to_odom_fusion" default="true"/>
+    <arg name="enable_tf_body_to_base_link" default="true"/>
+    <arg name="enable_tf_base_link_to_base_link_fusion" default="false"/>
+    <arg name="enable_tf_livox_to_base_link_fusion" default="true"/>
+
+    <!-- map -> odom_fusion -->
+    <arg name="map_to_odom_fusion_x" default="0.0"/>
+    <arg name="map_to_odom_fusion_y" default="0.0"/>
+    <arg name="map_to_odom_fusion_z" default="0.0"/>
+    <arg name="map_to_odom_fusion_yaw" default="0.0"/>
+    <arg name="map_to_odom_fusion_pitch" default="0.0"/>
+    <arg name="map_to_odom_fusion_roll" default="0.0"/>
+
+    <!-- body -> base_link -->
+    <arg name="body_to_base_link_x" default="0.0"/>
+    <arg name="body_to_base_link_y" default="0.0"/>
+    <arg name="body_to_base_link_z" default="0.0"/>
+    <arg name="body_to_base_link_yaw" default="0.0"/>
+    <arg name="body_to_base_link_pitch" default="0.0"/>
+    <arg name="body_to_base_link_roll" default="0.0"/>
+
+    <!-- base_link -> base_link_fusion -->
+    <arg name="base_link_to_base_link_fusion_x" default="0.0"/>
+    <arg name="base_link_to_base_link_fusion_y" default="0.0"/>
+    <arg name="base_link_to_base_link_fusion_z" default="0.0"/>
+    <arg name="base_link_to_base_link_fusion_yaw" default="0.0"/>
+    <arg name="base_link_to_base_link_fusion_pitch" default="0.0"/>
+    <arg name="base_link_to_base_link_fusion_roll" default="0.0"/>
+
+    <!-- livox_frame -> base_link_fusion (measured extrinsic; override by args) -->
+    <arg name="livox_to_base_link_fusion_x" default="0.35"/>
+    <arg name="livox_to_base_link_fusion_y" default="0.0"/>
+    <arg name="livox_to_base_link_fusion_z" default="-0.8"/>
+    <arg name="livox_to_base_link_fusion_yaw" default="0.0"/>
+    <arg name="livox_to_base_link_fusion_pitch" default="-0.5236"/>
+    <arg name="livox_to_base_link_fusion_roll" default="0.0"/>
+
+    <!-- NOTE:
+         base_link->base_link_fusion and livox_frame->base_link_fusion are two different parent chains.
+         Keep only one enabled in production to avoid duplicated parent definitions for base_link_fusion.
+    -->
+
+    <node if="$(arg enable_tf_map_to_odom_fusion)"
+          pkg="tf2_ros"
+          type="static_transform_publisher"
+          name="task5_map_to_odom_fusion_tf"
+          args="$(arg map_to_odom_fusion_x) $(arg map_to_odom_fusion_y) $(arg map_to_odom_fusion_z) $(arg map_to_odom_fusion_yaw) $(arg map_to_odom_fusion_pitch) $(arg map_to_odom_fusion_roll) map odom_fusion"/>
+
+    <node if="$(arg enable_tf_body_to_base_link)"
+          pkg="tf2_ros"
+          type="static_transform_publisher"
+          name="task5_body_to_base_link_tf"
+          args="$(arg body_to_base_link_x) $(arg body_to_base_link_y) $(arg body_to_base_link_z) $(arg body_to_base_link_yaw) $(arg body_to_base_link_pitch) $(arg body_to_base_link_roll) body base_link"/>
+
+    <node if="$(arg enable_tf_base_link_to_base_link_fusion)"
+          pkg="tf2_ros"
+          type="static_transform_publisher"
+          name="task5_base_link_to_base_link_fusion_tf"
+          args="$(arg base_link_to_base_link_fusion_x) $(arg base_link_to_base_link_fusion_y) $(arg base_link_to_base_link_fusion_z) $(arg base_link_to_base_link_fusion_yaw) $(arg base_link_to_base_link_fusion_pitch) $(arg base_link_to_base_link_fusion_roll) base_link base_link_fusion"/>
+
+    <node if="$(arg enable_tf_livox_to_base_link_fusion)"
+          pkg="tf2_ros"
+          type="static_transform_publisher"
+          name="task5_livox_to_base_link_fusion_tf"
+          args="$(arg livox_to_base_link_fusion_x) $(arg livox_to_base_link_fusion_y) $(arg livox_to_base_link_fusion_z) $(arg livox_to_base_link_fusion_yaw) $(arg livox_to_base_link_fusion_pitch) $(arg livox_to_base_link_fusion_roll) livox_frame base_link_fusion"/>
+
+    <!-- /cloud_registered -> /jh_cloud -->
+    <node if="$(arg enable_cloud_to_jh_cloud)"
+          pkg="topic_tools"
+          type="relay"
+          name="task5_cloud_registered_to_jh_cloud"
+          args="$(arg cloud_registered_topic) $(arg jh_cloud_topic)"/>
+
+    <!-- /Odometry -> /odom (for odom_baselink_tf workflow) -->
+    <node if="$(arg enable_odometry_to_odom)"
+          pkg="topic_tools"
+          type="relay"
+          name="task5_odometry_to_odom"
+          args="$(arg odometry_topic) $(arg odom_topic)"/>
+
+    <!-- /cloud_registered -> /scan (pointcloud_to_laserscan) -->
+    <node if="$(arg enable_cloud_to_scan)"
+          pkg="pointcloud_to_laserscan"
+          type="pointcloud_to_laserscan_node"
+          name="task5_cloud_registered_to_scan"
+          output="screen">
+        <remap from="scan" to="$(arg scan_topic)"/>
+        <param name="pointcloud_topic" value="$(arg cloud_registered_topic)"/>
+        <param name="target_frame" value="$(arg scan_target_frame)"/>
+        <param name="transform_tolerance" value="$(arg scan_transform_tolerance)"/>
+        <param name="min_height" value="$(arg scan_min_height)"/>
+        <param name="max_height" value="$(arg scan_max_height)"/>
+        <param name="range_min" value="$(arg scan_range_min)"/>
+        <param name="range_max" value="$(arg scan_range_max)"/>
+        <param name="use_inf" value="$(arg scan_use_inf)"/>
+        <param name="inf_epsilon" value="$(arg scan_inf_epsilon)"/>
+        <param name="concurrency_level" value="$(arg scan_concurrency_level)"/>
+    </node>
+</launch>

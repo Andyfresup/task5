@@ -1,3 +1,27 @@
+## Task5 Integration Notes (RoboCup26)
+
+This repository contains upstream FAST-LIO documentation below, but the Task5 deployment baseline in this workspace is:
+
+- ROS1 only (catkin)
+- Livox driver: `livox_ros_driver2` (ROS1 launch)
+- MID360 launch: `livox_ros_driver2/launch_ROS1/msg_MID360.launch`
+- Main entry: `roslaunch fast_lio task5_fastlio.launch`
+
+`task5_fastlio.launch` also includes `task5_compat_bridge.launch` for compatibility topics and TF:
+
+- Topics: `/cloud_registered -> /jh_cloud`, `/Odometry -> /odom`, `/cloud_registered -> /scan`
+- TF defaults: `map -> odom_fusion`, `body -> base_link`, `livox_frame -> base_link_fusion`
+- Disabled by default: `base_link -> base_link_fusion` (to avoid dual-parent TF conflict)
+
+Run with workspace script (recommended):
+
+```bash
+cd fastlio_ws
+bash run_task5_fastlio_real.sh
+```
+
+Important: sections below that mention `livox_ros_driver` (v1), `livox_lidar_msg.launch`, or `mapping_avia.launch` are upstream legacy references and are not the default Task5 deployment path in this workspace.
+
 ## Related Works and Extended Application
 
 **SLAM:**
@@ -73,7 +97,7 @@ PCL    >= 1.8,   Follow [PCL Installation](http://www.pointclouds.org/downloads/
 
 Eigen  >= 3.3.4, Follow [Eigen Installation](http://eigen.tuxfamily.org/index.php?title=Main_Page).
 
-### 1.3. **livox_ros_driver**
+### 1.3. Legacy: **livox_ros_driver** (upstream notes)
 Follow [livox_ros_driver Installation](https://github.com/Livox-SDK/livox_ros_driver).
 
 *Remarks:*
@@ -145,7 +169,7 @@ Clone the repository and catkin_make:
     catkin_make
     source devel/setup.bash
 ```
-- Remember to source the livox_ros_driver before build (follow 1.3 **livox_ros_driver**)
+- Legacy note: source `livox_ros_driver` before build only if you are reproducing the upstream v1 driver path (not Task5 default here).
 - If you want to use a custom build of PCL, add the following line to ~/.bashrc
 ```export PCL_ROOT={CUSTOM_PCL_PATH}```
 ## 3. Directly run
@@ -157,7 +181,7 @@ B. The warning message "Failed to find match for field 'time'." means the timest
 
 C. We recommend to set the **extrinsic_est_en** to false if the extrinsic is give. As for the extrinsic initiallization, please refer to our recent work: [**Robust Real-time LiDAR-inertial Initialization**](https://github.com/hku-mars/LiDAR_IMU_Init).
 
-### 3.1 For Avia
+### 3.1 Legacy For Avia (upstream notes)
 Connect to your PC to Livox Avia LiDAR by following  [Livox-ros-driver installation](https://github.com/Livox-SDK/livox_ros_driver), then
 ```
     cd ~/$FAST_LIO_ROS_DIR$

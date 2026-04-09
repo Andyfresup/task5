@@ -1,50 +1,67 @@
-# FAST-LIO 映射工作区（部署说明）
+# FAST-LIO 工作区（Task5 / MID360）
 
-本工作区基于 ROS（catkin），包含 FAST-LIO 算法和相关驱动（如 Livox / Velodyne）。当前已按官方 Livox ROS Driver 仓库结构整理，可直接编译并启动 `mapping_velodyne.launch`。
+本工作区用于 Task5 的定位与点云输出链路，当前基线已经统一为：
 
-## 先决条件
+- ROS1（catkin）
+- `livox_ros_driver2`（ROS1 launch）
+- MID360 启动文件：`launch_ROS1/msg_MID360.launch`
+- FAST-LIO 主启动：`fast_lio/task5_fastlio.launch`
 
-- 操作系统：Ubuntu 18.04 / 20.04（与目标 ROS 发行版匹配）
-- ROS：Melodic（对应 Ubuntu 18.04）或 Noetic（对应 Ubuntu 20.04）
-- 依赖库：PCL, Eigen, Boost 等（通常随 ROS 与系统包安装）
+## 当前默认行为
 
-建议先安装常见依赖：
+`task5_fastlio.launch` 会同时完成三件事：
+
+1. 启动 `livox_ros_driver2`（ROS1）并输出 Livox 数据。
+2. 启动 FAST-LIO（`mapping_mid360.launch`）。
+3. 启动 Task5 兼容层（`task5_compat_bridge.launch`）。
+
+兼容层默认桥接：
+
+- `/cloud_registered -> /jh_cloud`
+- `/Odometry -> /odom`
+- `/cloud_registered -> /scan`（由 `pointcloud_to_laserscan` 生成）
+
+兼容层默认 TF 策略：
+
+- 开启：`map -> odom_fusion`
+- 开启：`body -> base_link`
+- 关闭：`base_link -> base_link_fusion`
+- 开启：`livox_frame -> base_link_fusion`
+
+说明：默认采用 Livox 外参链路，避免 `base_link_fusion` 出现双父节点冲突。
+
+## 依赖与前置条件
+
+- Ubuntu 20.04
+- ROS Noetic
+- 已安装 Livox SDK（`liblivox_sdk_static.a` 或 `liblivox_sdk_shared.so`）
+- 建议安装：`ros-noetic-tf2-sensor-msgs`
+
+安装常见依赖示例：
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake git libpcl-dev libeigen3-dev
+sudo apt install -y build-essential cmake git libpcl-dev libeigen3-dev ros-noetic-tf2-sensor-msgs
 ```
 
-## 获取代码（如果从零开始）
-
-将仓库克隆到工作目录并切换到工作区根：
-
-```bash
-git clone <your-repo-url> fastlio_ws
-cd fastlio_ws
-```
-
-## 编译（以 catkin_make 为例）
-
-在工作区根运行：
+## 编译
 
 ```bash
 cd fastlio_ws
 catkin_make
-```
-
-如果你手动替换过 `src/livox_ros_driver`，请确认包根目录同时包含 `package.xml` 和 `CMakeLists.txt`；官方仓库的标准结构是 `ws/src/livox_ros_driver/livox_ros_driver/` 作为包目录，而不是再多嵌套一层。
-
-编译完成后在每个新终端加载环境：
-
-```bash
-cd fastlio_ws
 source devel/setup.bash
 ```
 
-## 推荐启动（task5 集成）
+## 启动方式
 
-在加载环境后，优先使用 `task5_fastlio.launch`（已适配当前三仓联调方案）：
+推荐使用工作区脚本（实机）：
+
+```bash
+cd fastlio_ws
+bash run_task5_fastlio_real.sh
+```
+
+或直接 roslaunch：
 
 ```bash
 cd fastlio_ws
@@ -52,68 +69,59 @@ source devel/setup.bash
 roslaunch fast_lio task5_fastlio.launch
 ```
 
-默认行为：
-
-- 启动 Livox 驱动并发布 `/livox/lidar`、`/livox/imu`
-- 启动 FAST-LIO（`mapping_avia.launch`）
-- 输出核心结果：`map -> body`、`/Odometry`、`/cloud_registered`
-
-可选参数示例：
+常见参数示例：
 
 ```bash
-roslaunch fast_lio task5_fastlio.launch livox_bd_list:=<你的雷达序列号> livox_frame:=livox_frame fastlio_rviz:=true
+roslaunch fast_lio task5_fastlio.launch \
+	livox_bd_list:=<MID360序列号> \
+	livox_frame:=livox_frame \
+	fastlio_rviz:=true
 ```
 
-说明：
+## 运行时可覆盖环境变量（脚本方式）
 
-- `livox_bd_list`：Livox 设备序列号列表
-- `livox_frame`：Livox 发布的 frame 名称（默认 `livox_frame`）
-- `fastlio_rviz`：是否启用 FAST-LIO 自带 Rviz
+`run_task5_fastlio_real.sh` 支持以下开关（仅列出常用）：
 
-## 传统启动（Velodyne 场景）
+- `ENABLE_TASK5_COMPAT_BRIDGE`（默认 `true`）
+- `ENABLE_CLOUD_TO_JH_CLOUD`（默认 `true`）
+- `ENABLE_ODOMETRY_TO_ODOM`（默认 `true`）
+- `ENABLE_CLOUD_TO_SCAN`（默认 `true`）
+- `ENABLE_TF_BASE_LINK_TO_BASE_LINK_FUSION`（默认 `false`）
+- `ENABLE_TF_LIVOX_TO_BASE_LINK_FUSION`（默认 `true`）
+- `LIVOX_TO_BASE_LINK_FUSION_X/Y/Z`、`LIVOX_TO_BASE_LINK_FUSION_ROLL/PITCH/YAW`
 
-在加载环境后，通过以下命令启动建图（你提供的命令）：
+示例：切换为 `base_link -> base_link_fusion` 链路（并关闭 Livox 外参链）
 
 ```bash
 cd fastlio_ws
-source devel/setup.bash
-roslaunch fast_lio mapping_velodyne.launch
+ENABLE_TF_BASE_LINK_TO_BASE_LINK_FUSION=true \
+ENABLE_TF_LIVOX_TO_BASE_LINK_FUSION=false \
+bash run_task5_fastlio_real.sh
 ```
 
-该 `launch` 文件通常会启动 FAST-LIO 的核心节点、参数加载与 Rviz 可视化。请确保硬件或 rosbag 发布的主题名称（常见：`/velodyne_points`, `/imu/data`）与 `launch` 文件中的配置一致。
-
-## 使用 rosbag 回放（无真实传感器时测试）
-
-1. 在一终端启动 `mapping_velodyne.launch`。
-2. 在另一终端播放数据包：
+## 快速自检
 
 ```bash
-rosbag play your_bag_file.bag --clock
+source /opt/ros/noetic/setup.bash
+rostopic hz /cloud_registered
+rostopic hz /jh_cloud
+rostopic hz /scan
+rostopic hz /Odometry
+rostopic hz /odom
 ```
 
-注意：许多节点依赖 ROS 时间（`/use_sim_time`），回放时建议使用 `--clock` 并确保参数 `use_sim_time` 在 launch 或参数文件中被设置为 `true`（如需要）。
+TF 检查：
 
-## 常见配置点
+```bash
+rosrun tf view_frames
+```
 
-- `topics`：确认点云话题（Velodyne 常用 `/velodyne_points`）和 IMU 话题名称一致。
-- `frame_id`：确认坐标系（`map`、`odom`、`base_link`）设置一致，避免 TF 错误。
-- `param` 文件：可在 `src/FAST_LIO/config/` 下查看 `velodyne.yaml`、`imu.yaml` 等并根据传感器调参。
+## 常见问题
 
-## 故障排查
+- 编译进到 ROS2/ament 分支：检查 `src/livox_ros_driver2/CMakeLists.txt` 是否保持 ROS1 默认分支。
+- 报 Livox SDK 库找不到：确认 SDK 已安装，且库文件可被 CMake 搜索到。
+- `/scan` 不发布：确认兼容桥接开启且 `pointcloud_to_laserscan` 包可被 `rospack find` 找到。
 
-- 节点未启动或找不到包：确认已在工作区根执行 `source devel/setup.bash`。
-- 没有点云输入：使用 `rostopic echo /velodyne_points` 或 `rosrun rqt_graph Rqt_graph` 检查话题与连接。
-- TF 错误：使用 `rosrun tf tf_monitor` 或 `rosrun rqt_tf_tree rqt_tf_tree` 检查坐标变换。
+## 可迁移性说明
 
-## 额外建议
-
-- 在不同机器或 ROS 版本上部署时，先确认依赖版本并在干净环境中编译。
-- 若使用 Livox 设备，请参考 `src/livox_ros_driver` 目录下的说明并使用相应的 launch 文件（如果存在）。
-
-## 联系与许可
-
-如需更多帮助，请在仓库中打开 Issue 或联系维护者。
-
----
-
-（本文档为部署快速参考，必要时可扩展为“安装与调试手册”）
+为减少跨仓迁移依赖，本工作区已内置 `src/pointcloud_to_laserscan`，无需依赖外部工作区同名包。

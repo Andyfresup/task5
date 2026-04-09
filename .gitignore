@@ -1,5 +1,9 @@
 # Top-level workspace ignore rules
 
+# Ignore nested repos that should not be committed in this super-repo
+/26-WrightEagle.AI-mapping/
+/26-WrightEagle.AI-navigation/
+
 # Nested repository metadata
 **/.git/
 
