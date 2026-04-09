@@ -7,17 +7,17 @@
 该入口脚本会先做预检查并统一注入运行参数，功能包括：
 
 - 支持 `--check` 仅执行预检查（不启动主流程）
-- 默认依次启动 `base_4drive`、`fastlio_ws`、`far_planner` 的实机脚本，再启动 `task5_person_tracker`
-- 支持 `--person-only`、`--no-base`、`--no-fastlio`、`--no-far` 进行组件裁剪
+- 默认依次启动 `fastlio_ws`、`far_planner` 的实机脚本，再启动 `task5_person_tracker`（no-base 默认）
+- 支持 `--person-only`、`--with-base`、`--no-base`、`--no-fastlio`、`--no-far` 进行组件裁剪
 - 默认使用比赛档参数；加 `--test` 可切换到联调档参数
 - 支持 `--` 后透传参数到 `task5_person_tracker/run_task5_person_follow_voice.sh`（当前为预留透传位）
 - 检查主启动脚本、YOLO 目录、语音目录、`python3` 可用性
 - 支持 `STARTUP_DELAY`（秒）控制底层模块分步拉起间隔，默认 `2`
-- 底层三模块在后台运行，主脚本退出时会自动清理这些后台进程
+- 底层默认两模块在后台运行，主脚本退出时会自动清理这些后台进程（启用 `--with-base` 时为三模块）
 - 若存在 `.venv` 则自动激活（仅供 `task5_person_tracker` Python 依赖），并注入相对路径默认变量（`YOLO_PERCEPTION_DIR`、`SPEECH_MODULE_FILE`、`SPEECH_ASR_FILE`）
 - 将额外参数透传给 `task5_person_tracker/run_task5_person_follow_voice.sh` 并启动 Task5 主流程
 
-说明：三个独立实机脚本 `fastlio_ws/run_task5_fastlio_real.sh`、`far_planner/run_task5_farplanner_real.sh`、`base_4drive/run_task5_base_real.sh` 不包含虚拟环境激活逻辑，仅依赖各自 ROS 工作区的 `devel/setup.bash`。
+说明：两个默认实机脚本 `fastlio_ws/run_task5_fastlio_real.sh`、`far_planner/run_task5_farplanner_real.sh` 不包含虚拟环境激活逻辑，仅依赖各自 ROS 工作区的 `devel/setup.bash`。若你本地仍保留可用底盘工作区，可通过 `--with-base` 额外拉起底盘脚本。
 
 ## 0. 新人快速入口（简版）
 
@@ -136,7 +136,11 @@ bash run_task5_all.sh
 - `task5_person_tracker`：任务主流程（检测、跟随、语义、状态机）
 - `26-WrightEagle.AI-YOLO-Perception`：实时吧台物体检测（默认调用 `realsenseinfer.py`）
 - `26-WrightEagle.AI-Speech`：TTS/ASR 模块（脚本中自动按路径启用）
-- `far_planner`、`fastlio_ws`、`base_4drive`：导航/定位相关工程（按你的系统启动）
+- `far_planner`、`fastlio_ws`：导航/定位相关工程（默认由根脚本拉起）
+
+可选组件（仅在你的环境存在且可用时启用）：
+
+- `base_4drive`：底盘相关工程（通过 `--with-base` 启用）
 
 根目录其他工程（当前 `run_task5_all.sh` 默认不直接拉起）：
 
@@ -396,19 +400,25 @@ export FOOD_SEMANTIC_MHRC_API_KEY="ollama"
 
 ## 6. 启动前置条件
 
-`run_task5_all.sh` 的默认行为是先启动底层三套实机脚本，再启动 Task5 主流程：
+`run_task5_all.sh` 的默认行为是先启动底层两套实机脚本，再启动 Task5 主流程：
 
-- `base_4drive/run_task5_base_real.sh`
 - `fastlio_ws/run_task5_fastlio_real.sh`
 - `far_planner/run_task5_farplanner_real.sh`
 - `task5_person_tracker/run_task5_person_follow_voice.sh`
+
+如需启用底盘，再加 `--with-base`（会尝试拉起 `base_4drive/run_task5_base_real.sh`）。
 
 因此在默认模式下，以下关键话题通常由前置模块提供：
 
 - `/cloud_registered`：点云输入（用于生成占据栅格）
 - `/cmd_vel_nav`：导航器速度输出（由仲裁器合成为 `/cmd_vel`）
+- `/jh_cloud`：由 `fastlio_ws` 兼容桥接将 `/cloud_registered` 转发得到
+- `/scan`：由 `fastlio_ws` 兼容桥接中的 `pointcloud_to_laserscan` 从 `/cloud_registered` 生成
+- `/odom`：由 `fastlio_ws` 兼容桥接将 `/Odometry` 转发得到
 
-如果你使用 `--person-only`、`--no-fastlio` 或 `--no-far` 裁剪启动组件，则需要外部系统自行提供这些话题。
+若你需要关闭上述兼容桥接，可在启动 `fastlio_ws/run_task5_fastlio_real.sh` 前设置环境变量（如 `ENABLE_TASK5_COMPAT_BRIDGE=false` 或单项开关）。
+
+如果你使用 `--person-only`、`--no-fastlio` 或 `--no-far` 裁剪启动组件，则需要外部系统自行提供这些话题。若使用 `--with-base`，还会尝试接入底盘控制链。
 
 其中 `task5_person_tracker/run_task5_person_follow_voice.sh` 内部会启动：
 
@@ -427,10 +437,9 @@ bash run_task5_all.sh
 
 其中根目录脚本 `run_task5_all.sh` 默认启动顺序为：
 
-1. `base_4drive/run_task5_base_real.sh`
-2. `fastlio_ws/run_task5_fastlio_real.sh`
-3. `far_planner/run_task5_farplanner_real.sh`
-4. `task5_person_tracker/run_task5_person_follow_voice.sh`
+1. `fastlio_ws/run_task5_fastlio_real.sh`
+2. `far_planner/run_task5_farplanner_real.sh`
+3. `task5_person_tracker/run_task5_person_follow_voice.sh`
 
 常用模式：
 
@@ -438,14 +447,17 @@ bash run_task5_all.sh
 # 仅预检查
 bash run_task5_all.sh --check
 
-# 仅启动 person_tracker（不启动底层三模块）
+# 仅启动 person_tracker（不启动底层模块）
 bash run_task5_all.sh --person-only
 
 # 联调档（自动开启状态注入并关闭 ACK 强制）
 bash run_task5_all.sh --test --person-only
 
-# 跳过 FAR，仅启动 base + fastlio + person_tracker
+# 跳过 FAR，仅启动 fastlio + person_tracker
 bash run_task5_all.sh --no-far
+
+# 在默认链路基础上额外启用底盘
+bash run_task5_all.sh --with-base
 
 # 调整底层模块启动间隔（秒）
 STARTUP_DELAY=3 bash run_task5_all.sh

@@ -3,9 +3,29 @@
     <arg name="livox_bd_list" default="100000000000000"/>
     <arg name="livox_frame" default="livox_frame"/>
     <arg name="fastlio_rviz" default="false"/>
+    <arg name="enable_task5_compat_bridge" default="true"/>
 
-    <!-- Livox driver publishes /livox/lidar and /livox/imu -->
-    <include file="$(find livox_ros_driver)/launch/livox_lidar_msg.launch">
+    <!-- Topic bridge switches -->
+    <arg name="enable_cloud_to_jh_cloud" default="true"/>
+    <arg name="enable_odometry_to_odom" default="true"/>
+    <arg name="enable_cloud_to_scan" default="true"/>
+
+    <!-- TF strategy defaults: use livox extrinsic chain -->
+    <arg name="enable_tf_map_to_odom_fusion" default="true"/>
+    <arg name="enable_tf_body_to_base_link" default="true"/>
+    <arg name="enable_tf_base_link_to_base_link_fusion" default="false"/>
+    <arg name="enable_tf_livox_to_base_link_fusion" default="true"/>
+
+    <!-- livox_frame -> base_link_fusion extrinsic (override by args when needed) -->
+    <arg name="livox_to_base_link_fusion_x" default="0.35"/>
+    <arg name="livox_to_base_link_fusion_y" default="0.0"/>
+    <arg name="livox_to_base_link_fusion_z" default="-0.8"/>
+    <arg name="livox_to_base_link_fusion_yaw" default="0.0"/>
+    <arg name="livox_to_base_link_fusion_pitch" default="-0.5236"/>
+    <arg name="livox_to_base_link_fusion_roll" default="0.0"/>
+
+    <!-- Livox ROS Driver2 (MID360) publishes /livox/lidar and /livox/imu -->
+    <include file="$(find livox_ros_driver2)/launch_ROS1/msg_MID360.launch">
         <arg name="bd_list" value="$(arg livox_bd_list)"/>
         <arg name="msg_frame_id" value="$(arg livox_frame)"/>
         <arg name="rviz_enable" value="false"/>
@@ -14,7 +34,26 @@
     </include>
 
     <!-- FAST_LIO publishes map->body, /Odometry, /cloud_registered -->
-    <include file="$(find fast_lio)/launch/mapping_avia.launch">
+    <include file="$(find fast_lio)/launch/mapping_mid360.launch">
         <arg name="rviz" value="$(arg fastlio_rviz)"/>
+    </include>
+
+    <!-- Task5 compatibility layer: topic bridges + TF shims -->
+    <include if="$(arg enable_task5_compat_bridge)" file="$(find fast_lio)/launch/task5_compat_bridge.launch">
+        <arg name="enable_cloud_to_jh_cloud" value="$(arg enable_cloud_to_jh_cloud)"/>
+        <arg name="enable_odometry_to_odom" value="$(arg enable_odometry_to_odom)"/>
+        <arg name="enable_cloud_to_scan" value="$(arg enable_cloud_to_scan)"/>
+
+        <arg name="enable_tf_map_to_odom_fusion" value="$(arg enable_tf_map_to_odom_fusion)"/>
+        <arg name="enable_tf_body_to_base_link" value="$(arg enable_tf_body_to_base_link)"/>
+        <arg name="enable_tf_base_link_to_base_link_fusion" value="$(arg enable_tf_base_link_to_base_link_fusion)"/>
+        <arg name="enable_tf_livox_to_base_link_fusion" value="$(arg enable_tf_livox_to_base_link_fusion)"/>
+
+        <arg name="livox_to_base_link_fusion_x" value="$(arg livox_to_base_link_fusion_x)"/>
+        <arg name="livox_to_base_link_fusion_y" value="$(arg livox_to_base_link_fusion_y)"/>
+        <arg name="livox_to_base_link_fusion_z" value="$(arg livox_to_base_link_fusion_z)"/>
+        <arg name="livox_to_base_link_fusion_yaw" value="$(arg livox_to_base_link_fusion_yaw)"/>
+        <arg name="livox_to_base_link_fusion_pitch" value="$(arg livox_to_base_link_fusion_pitch)"/>
+        <arg name="livox_to_base_link_fusion_roll" value="$(arg livox_to_base_link_fusion_roll)"/>
     </include>
 </launch>

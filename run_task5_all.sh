@@ -14,7 +14,7 @@ STARTUP_DELAY="${STARTUP_DELAY:-2}"
 
 ENABLE_FASTLIO=1
 ENABLE_FAR=1
-ENABLE_BASE=1
+ENABLE_BASE=0
 PROFILE_MODE="competition"
 
 PIDS=()
@@ -31,13 +31,15 @@ Options:
   --person-only  Launch only task5_person_tracker.
   --no-fastlio   Do not launch FAST-LIO script.
   --no-far       Do not launch FAR Planner script.
-  --no-base      Do not launch base_4drive script.
+  --with-base    Launch base_4drive script.
+  --no-base      Do not launch base_4drive script (default).
   --             Stop parsing options; remaining args pass to tracker.
 
 Notes:
   - This script is the global Task5 entrypoint at repo root.
   - Profile: default competition; use --test for integration testing profile.
-  - By default it launches base_4drive, FAST-LIO, FAR Planner, then task5_person_tracker.
+  - By default it launches FAST-LIO, FAR Planner, then task5_person_tracker (no-base mode).
+  - Use --with-base if you have a valid base launcher and want to start it too.
   - Remaining args are passed through to task5_person_tracker launcher.
 EOF
 }
@@ -191,6 +193,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-far)
       ENABLE_FAR=0
+      shift
+      ;;
+    --with-base)
+      ENABLE_BASE=1
       shift
       ;;
     --no-base)
