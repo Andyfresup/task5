@@ -26,7 +26,6 @@
 1. 首次安装依赖（一次性）：
 
 ```bash
-cd robocup26
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -46,7 +45,6 @@ roscore
 3. 新终端做预检查：
 
 ```bash
-cd robocup26
 source .venv/bin/activate
 bash run_task5_all.sh --check
 ```
@@ -163,7 +161,6 @@ bash run_task5_all.sh
 在仓库根目录创建并激活虚拟环境：
 
 ```bash
-cd robocup26
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -172,7 +169,6 @@ python -m pip install --upgrade pip
 在虚拟环境中安装 Task5 根依赖：
 
 ```bash
-cd robocup26
 pip install -r requirements.txt
 ```
 
@@ -201,7 +197,6 @@ pip install pyrealsense2
 快速验证 Python 侧依赖：
 
 ```bash
-cd robocup26
 source .venv/bin/activate
 python3 -c "import pyrealsense2 as rs; print('pyrealsense2 ok')"
 ```
@@ -240,7 +235,7 @@ groups
 先验证 YOLO + RealSense 检测链路：
 
 ```bash
-cd robocup26/26-WrightEagle.AI-YOLO-Perception
+cd 26-WrightEagle.AI-YOLO-Perception
 python3 realsenseinfer.py
 ```
 
@@ -249,7 +244,7 @@ python3 realsenseinfer.py
 再验证 Task5 人体坐标发布：
 
 ```bash
-cd robocup26/task5_person_tracker
+cd task5_person_tracker
 bash run_task5_person_follow_voice.sh
 ```
 
@@ -292,7 +287,6 @@ rostopic echo -n 1 /person/base_link_3d_position
 sudo apt update
 sudo apt install -y portaudio19-dev alsa-utils pulseaudio
 
-cd robocup26
 source .venv/bin/activate
 pip install pyaudio sounddevice faster-whisper resampy silero-vad
 ```
@@ -342,21 +336,20 @@ pactl set-default-sink <sink_name>
 1. 录音输入自检：
 
 ```bash
-cd robocup26/26-WrightEagle.AI-Speech/src/asr
+cd 26-WrightEagle.AI-Speech/src/asr
 python3 vad-whisper.py
 ```
 
 2. 扬声器输出自检：
 
 ```bash
-cd robocup26/26-WrightEagle.AI-Speech/src/tts
+cd 26-WrightEagle.AI-Speech/src/tts
 python3 synthesizer.py
 ```
 
 3. 任务链路自检（启动后检查语音话题和日志）：
 
 ```bash
-cd robocup26
 source .venv/bin/activate
 bash run_task5_all.sh --check
 ```
@@ -430,7 +423,6 @@ export FOOD_SEMANTIC_MHRC_API_KEY="ollama"
 ## 7. 一键启动
 
 ```bash
-cd robocup26
 source .venv/bin/activate
 bash run_task5_all.sh
 ```
@@ -595,7 +587,6 @@ sudo apt install -y portaudio19-dev alsa-utils pulseaudio librealsense2-dkms lib
 2. Python 依赖（根 + Task5 + MHRC）：
 
 ```bash
-cd robocup26
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -624,7 +615,6 @@ rostopic list
 3. 预检查：
 
 ```bash
-cd robocup26
 source .venv/bin/activate
 bash run_task5_all.sh --check
 ```
@@ -632,7 +622,6 @@ bash run_task5_all.sh --check
 ### 11.3 语义后端使用 MHRC（Task5 主流程）
 
 ```bash
-cd robocup26
 source .venv/bin/activate
 
 export FOOD_SEMANTIC_BACKEND=mhrc
@@ -717,7 +706,7 @@ export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=true
 3. 运行 MHRC 侧：
 
 ```bash
-cd robocup26/26-WrightEagle.AI-MHRC-planning/src
+cd 26-WrightEagle.AI-MHRC-planning/src
 python3 main.py
 ```
 
@@ -761,7 +750,6 @@ ls -l /dev/ttyUSB0
 4. 启动全链路：
 
 ```bash
-cd robocup26
 source .venv/bin/activate
 bash run_task5_all.sh
 ```
@@ -771,7 +759,7 @@ bash run_task5_all.sh
 1. 启动 Task5（建议开启调试状态注入）：
 
 ```bash
-cd robocup26/task5_person_tracker
+cd task5_person_tracker
 export MHRC_NAV_DEBUG_STATE_OVERRIDE_ENABLED=true
 bash run_task5_person_follow_voice.sh
 ```
@@ -779,7 +767,6 @@ bash run_task5_person_follow_voice.sh
 2. 执行 Task5 状态门控矩阵：
 
 ```bash
-cd robocup26
 python3 task5_person_tracker/tools/nav_gate_matrix_runner.py \
 	--suite all \
 	--enable-debug-state \
@@ -789,7 +776,6 @@ python3 task5_person_tracker/tools/nav_gate_matrix_runner.py \
 3. 执行 MHRC 适配器 ACK 超时探针：
 
 ```bash
-cd robocup26
 python3 26-WrightEagle.AI-MHRC-planning/tests/task5_ack_timeout_probe.py \
 	--mode timeout \
 	--ack-timeout 2.0 \
