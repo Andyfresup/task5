@@ -42,7 +42,7 @@ double maxYawRate = 45.0;
 double maxSpeed = 1.0;
 double maxAccel = 1.0;
 double switchTimeThre = 1.0;
-double dirDiffThre = 0.1;
+double dirDiffThre = 0.5;  // Increased from 0.1 to allow more direction deviation tolerance
 double stopDisThre = 0.2;
 double slowDwnDisThre = 1.0;
 bool useInclRateToSlow = false;
@@ -56,7 +56,7 @@ double inclThre = 45.0;
 double stopTime = 5.0;
 bool noRotAtStop = false;
 bool noRotAtGoal = true;
-bool autonomyMode = false;
+bool autonomyMode = true;  // Default to true to match launch configuration
 double autonomySpeed = 1.0;
 double joyToSpeedDelay = 2.0;
 

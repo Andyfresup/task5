@@ -17,7 +17,7 @@ fi
 # Optional runtime overrides (real robot)
 LIVOX_BD_LIST="${LIVOX_BD_LIST:-}"
 LIVOX_FRAME="${LIVOX_FRAME:-livox_frame}"
-FASTLIO_RVIZ="${FASTLIO_RVIZ:-false}"
+FASTLIO_RVIZ="${FASTLIO_RVIZ:-true}"
 
 # Compatibility bridge controls
 ENABLE_TASK5_COMPAT_BRIDGE="${ENABLE_TASK5_COMPAT_BRIDGE:-true}"
@@ -25,10 +25,11 @@ ENABLE_CLOUD_TO_JH_CLOUD="${ENABLE_CLOUD_TO_JH_CLOUD:-true}"
 ENABLE_ODOMETRY_TO_ODOM="${ENABLE_ODOMETRY_TO_ODOM:-true}"
 ENABLE_CLOUD_TO_SCAN="${ENABLE_CLOUD_TO_SCAN:-true}"
 
-# TF strategy defaults: livox_frame -> base_link_fusion enabled, base_link -> base_link_fusion disabled
-ENABLE_TF_MAP_TO_ODOM_FUSION="${ENABLE_TF_MAP_TO_ODOM_FUSION:-true}"
+# TF strategy defaults: single chain map -> body -> livox_frame -> base_link_fusion -> base_link.
+# Disable map->odom_fusion to avoid TF tree branching under map.
+ENABLE_TF_MAP_TO_ODOM_FUSION="${ENABLE_TF_MAP_TO_ODOM_FUSION:-false}"
 ENABLE_TF_BODY_TO_BASE_LINK="${ENABLE_TF_BODY_TO_BASE_LINK:-true}"
-ENABLE_TF_BASE_LINK_TO_BASE_LINK_FUSION="${ENABLE_TF_BASE_LINK_TO_BASE_LINK_FUSION:-false}"
+ENABLE_TF_BASE_LINK_TO_BASE_LINK_FUSION="${ENABLE_TF_BASE_LINK_TO_BASE_LINK_FUSION:-true}"
 ENABLE_TF_LIVOX_TO_BASE_LINK_FUSION="${ENABLE_TF_LIVOX_TO_BASE_LINK_FUSION:-true}"
 
 # Optional livox extrinsic overrides (meters/radians)

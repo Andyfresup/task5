@@ -10,8 +10,8 @@ This repository contains upstream FAST-LIO documentation below, but the Task5 de
 `task5_fastlio.launch` also includes `task5_compat_bridge.launch` for compatibility topics and TF:
 
 - Topics: `/cloud_registered -> /jh_cloud`, `/Odometry -> /odom`, `/cloud_registered -> /scan`
-- TF defaults: `map -> odom_fusion`, `body -> base_link`, `livox_frame -> base_link_fusion`
-- Disabled by default: `base_link -> base_link_fusion` (to avoid dual-parent TF conflict)
+- TF defaults: `map -> odom_fusion`, `body -> base_link`, `base_link -> base_link_fusion`
+- Disabled by default: `livox_frame -> base_link_fusion` (to avoid dual-parent TF conflict)
 
 Run with workspace script (recommended):
 

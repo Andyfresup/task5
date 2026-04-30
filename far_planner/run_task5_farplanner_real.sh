@@ -20,9 +20,38 @@ ODOM_TOPIC="${ODOM_TOPIC:-/Odometry}"
 SCAN_CLOUD_TOPIC="${SCAN_CLOUD_TOPIC:-/cloud_registered}"
 TERRAIN_TOPIC="${TERRAIN_TOPIC:-/terrain_map}"
 ENABLE_PERSON_TRACKER_TOPIC_BRIDGE="${ENABLE_PERSON_TRACKER_TOPIC_BRIDGE:-true}"
+ENABLE_TWIST_BRIDGE="${ENABLE_TWIST_BRIDGE:-true}"
+TWIST_BRIDGE_IN_TOPIC="${TWIST_BRIDGE_IN_TOPIC:-/cmd_vel_nav}"
+TWIST_BRIDGE_OUT_TOPIC="${TWIST_BRIDGE_OUT_TOPIC:-/motion_target/target_speed_chassis}"
+TWIST_BRIDGE_BRAKE_TOPIC="${TWIST_BRIDGE_BRAKE_TOPIC:-/motion_target/brake_mode}"
 
 # shellcheck disable=SC1091
 source devel/setup.bash
+
+BRIDGE_PID=""
+if [[ "${ENABLE_TWIST_BRIDGE}" == "true" ]]; then
+  BRIDGE_SCRIPT="${SCRIPT_DIR}/scripts/twist_to_twist_stamped_bridge.py"
+  if [[ ! -f "${BRIDGE_SCRIPT}" ]]; then
+    echo "[ERROR] Missing bridge script: ${BRIDGE_SCRIPT}" >&2
+    exit 1
+  fi
+
+  echo "[INFO] Start twist bridge: ${TWIST_BRIDGE_IN_TOPIC} -> ${TWIST_BRIDGE_OUT_TOPIC}"
+  python3 "${BRIDGE_SCRIPT}" \
+    _in_topic:="${TWIST_BRIDGE_IN_TOPIC}" \
+    _out_topic:="${TWIST_BRIDGE_OUT_TOPIC}" \
+    _brake_topic:="${TWIST_BRIDGE_BRAKE_TOPIC}" \
+    _release_brake:=true \
+    >/tmp/far_planner_twist_bridge.log 2>&1 &
+  BRIDGE_PID=$!
+fi
+
+cleanup() {
+  if [[ -n "${BRIDGE_PID}" ]] && kill -0 "${BRIDGE_PID}" >/dev/null 2>&1; then
+    kill "${BRIDGE_PID}" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT INT TERM
 
 CMD=(
   roslaunch
@@ -39,4 +68,4 @@ CMD=(
 CMD+=("$@")
 
 echo "[INFO] Launch FAR Planner (real robot): ${CMD[*]}"
-exec "${CMD[@]}"
+"${CMD[@]}"

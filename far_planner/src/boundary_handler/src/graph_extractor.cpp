@@ -571,18 +571,43 @@ void GraphExtractor::VisualizeGraph(const NodePtrStack& graphIn) {
         idx ++;    
     } 
     nav_node_marker.points.resize(idx);
-    graph_marker_array.markers.push_back(nav_node_marker);
-    graph_marker_array.markers.push_back(covered_node_marker);
-    graph_marker_array.markers.push_back(internav_node_marker);
-    graph_marker_array.markers.push_back(frontier_node_marker);
-    graph_marker_array.markers.push_back(edge_marker);
-    graph_marker_array.markers.push_back(poly_edge_marker);
-    graph_marker_array.markers.push_back(boundary_edge_marker);
-    graph_marker_array.markers.push_back(free_edge_marker);
-    graph_marker_array.markers.push_back(contour_edge_marker);
-    graph_marker_array.markers.push_back(traj_edge_marker);
-    graph_marker_array.markers.push_back(corner_surf_marker);
-    graph_marker_array.markers.push_back(corner_helper_marker);
+    // Only add markers with points to avoid rviz error
+    if (!nav_node_marker.points.empty()) {
+        graph_marker_array.markers.push_back(nav_node_marker);
+    }
+    if (!covered_node_marker.points.empty()) {
+        graph_marker_array.markers.push_back(covered_node_marker);
+    }
+    if (!internav_node_marker.points.empty()) {
+        graph_marker_array.markers.push_back(internav_node_marker);
+    }
+    if (!frontier_node_marker.points.empty()) {
+        graph_marker_array.markers.push_back(frontier_node_marker);
+    }
+    if (!edge_marker.points.empty()) {
+        graph_marker_array.markers.push_back(edge_marker);
+    }
+    if (!poly_edge_marker.points.empty()) {
+        graph_marker_array.markers.push_back(poly_edge_marker);
+    }
+    if (!boundary_edge_marker.points.empty()) {
+        graph_marker_array.markers.push_back(boundary_edge_marker);
+    }
+    if (!free_edge_marker.points.empty()) {
+        graph_marker_array.markers.push_back(free_edge_marker);
+    }
+    if (!contour_edge_marker.points.empty()) {
+        graph_marker_array.markers.push_back(contour_edge_marker);
+    }
+    if (!traj_edge_marker.points.empty()) {
+        graph_marker_array.markers.push_back(traj_edge_marker);
+    }
+    if (!corner_surf_marker.points.empty()) {
+        graph_marker_array.markers.push_back(corner_surf_marker);
+    }
+    if (!corner_helper_marker.points.empty()) {
+        graph_marker_array.markers.push_back(corner_helper_marker);
+    }
     graph_viz_pub_.publish(graph_marker_array);
 }
 

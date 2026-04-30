@@ -41,7 +41,10 @@ void DPVisualizer::VizNodes(const NodePtrStack& node_stack,
         idx ++;
     }
     node_marker.points.resize(idx);
-    viz_node_pub_.publish(node_marker);
+    // Only publish if marker has points to avoid rviz error
+    if (!node_marker.points.empty()) {
+        viz_node_pub_.publish(node_marker);
+    }
 }
 
 void DPVisualizer::VizPoint3D(const Point3D& point, 
@@ -61,6 +64,9 @@ void DPVisualizer::VizPoint3D(const Point3D& point,
 }
 
 void DPVisualizer::VizPath(const NodePtrStack& global_path, const bool& is_free_nav) {
+    if (global_path.empty()) {
+        return;  // Skip publishing if path is empty to avoid rviz error
+    }
     Marker path_marker;
     path_marker.type = Marker::LINE_STRIP;
     const VizColor color = is_free_nav ? VizColor::GREEN : VizColor::BLUE;
@@ -133,8 +139,13 @@ void DPVisualizer::VizGlobalPolygons(const std::vector<PointPair>& contour_pairs
         unmatched_contour_marker.points.push_back(p_start);
         unmatched_contour_marker.points.push_back(p_end);
     }
-    poly_marker_array.markers.push_back(global_contour_marker);
-    poly_marker_array.markers.push_back(unmatched_contour_marker);
+    // Only add markers with points to avoid rviz error
+    if (!global_contour_marker.points.empty()) {
+        poly_marker_array.markers.push_back(global_contour_marker);
+    }
+    if (!unmatched_contour_marker.points.empty()) {
+        poly_marker_array.markers.push_back(unmatched_contour_marker);
+    }
     viz_poly_pub_.publish(poly_marker_array);
 }
 
@@ -200,12 +211,25 @@ void DPVisualizer::VizContourGraph(const CTNodeStack& contour_graph)
         Draw_Contour(ctnode);
         Draw_Surf_Dir(ctnode);
     }
-    contour_marker_array.markers.push_back(contour_vertex_marker);
-    contour_marker_array.markers.push_back(vertex_matched_marker);
-    contour_marker_array.markers.push_back(necessary_vertex_marker);
-    contour_marker_array.markers.push_back(contour_marker);
-    contour_marker_array.markers.push_back(contour_surf_marker);
-    contour_marker_array.markers.push_back(contour_helper_marker);
+    // Only add markers with points to avoid rviz error
+    if (!contour_vertex_marker.points.empty()) {
+        contour_marker_array.markers.push_back(contour_vertex_marker);
+    }
+    if (!vertex_matched_marker.points.empty()) {
+        contour_marker_array.markers.push_back(vertex_matched_marker);
+    }
+    if (!necessary_vertex_marker.points.empty()) {
+        contour_marker_array.markers.push_back(necessary_vertex_marker);
+    }
+    if (!contour_marker.points.empty()) {
+        contour_marker_array.markers.push_back(contour_marker);
+    }
+    if (!contour_surf_marker.points.empty()) {
+        contour_marker_array.markers.push_back(contour_surf_marker);
+    }
+    if (!contour_helper_marker.points.empty()) {
+        contour_marker_array.markers.push_back(contour_helper_marker);
+    }
     viz_contour_pub_.publish(contour_marker_array);
 }
 
@@ -362,24 +386,61 @@ void DPVisualizer::VizGraph(const NodePtrStack& graph) {
         idx ++;    
     } 
     nav_node_marker.points.resize(idx);
-    graph_marker_array.markers.push_back(nav_node_marker);
-    graph_marker_array.markers.push_back(unfinal_node_marker);
-    graph_marker_array.markers.push_back(near_node_marker);
-    graph_marker_array.markers.push_back(covered_node_marker);
-    graph_marker_array.markers.push_back(frontier_node_marker);
-    graph_marker_array.markers.push_back(internav_node_marker);
-    graph_marker_array.markers.push_back(boundary_node_marker);
-    graph_marker_array.markers.push_back(edge_marker);
-    graph_marker_array.markers.push_back(visual_edge_marker);
-    graph_marker_array.markers.push_back(free_edge_marker);
-    graph_marker_array.markers.push_back(goal_edge_marker);
-    graph_marker_array.markers.push_back(contour_edge_marker);
-    graph_marker_array.markers.push_back(boundary_edge_marker);
-    graph_marker_array.markers.push_back(odom_edge_marker);
-    graph_marker_array.markers.push_back(traj_edge_marker);
-    graph_marker_array.markers.push_back(corner_surf_marker);
-    graph_marker_array.markers.push_back(corner_helper_marker);
-    graph_marker_array.markers.push_back(contour_align_marker);
+    // Only add markers with points to avoid rviz error
+    if (!nav_node_marker.points.empty()) {
+        graph_marker_array.markers.push_back(nav_node_marker);
+    }
+    if (!unfinal_node_marker.points.empty()) {
+        graph_marker_array.markers.push_back(unfinal_node_marker);
+    }
+    if (!near_node_marker.points.empty()) {
+        graph_marker_array.markers.push_back(near_node_marker);
+    }
+    if (!covered_node_marker.points.empty()) {
+        graph_marker_array.markers.push_back(covered_node_marker);
+    }
+    if (!frontier_node_marker.points.empty()) {
+        graph_marker_array.markers.push_back(frontier_node_marker);
+    }
+    if (!internav_node_marker.points.empty()) {
+        graph_marker_array.markers.push_back(internav_node_marker);
+    }
+    if (!boundary_node_marker.points.empty()) {
+        graph_marker_array.markers.push_back(boundary_node_marker);
+    }
+    if (!edge_marker.points.empty()) {
+        graph_marker_array.markers.push_back(edge_marker);
+    }
+    if (!visual_edge_marker.points.empty()) {
+        graph_marker_array.markers.push_back(visual_edge_marker);
+    }
+    if (!free_edge_marker.points.empty()) {
+        graph_marker_array.markers.push_back(free_edge_marker);
+    }
+    if (!goal_edge_marker.points.empty()) {
+        graph_marker_array.markers.push_back(goal_edge_marker);
+    }
+    if (!contour_edge_marker.points.empty()) {
+        graph_marker_array.markers.push_back(contour_edge_marker);
+    }
+    if (!boundary_edge_marker.points.empty()) {
+        graph_marker_array.markers.push_back(boundary_edge_marker);
+    }
+    if (!odom_edge_marker.points.empty()) {
+        graph_marker_array.markers.push_back(odom_edge_marker);
+    }
+    if (!traj_edge_marker.points.empty()) {
+        graph_marker_array.markers.push_back(traj_edge_marker);
+    }
+    if (!corner_surf_marker.points.empty()) {
+        graph_marker_array.markers.push_back(corner_surf_marker);
+    }
+    if (!corner_helper_marker.points.empty()) {
+        graph_marker_array.markers.push_back(corner_helper_marker);
+    }
+    if (!contour_align_marker.points.empty()) {
+        graph_marker_array.markers.push_back(contour_align_marker);
+    }
     viz_graph_pub_.publish(graph_marker_array);
 }
 

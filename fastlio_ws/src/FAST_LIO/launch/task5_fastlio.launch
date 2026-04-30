@@ -10,10 +10,10 @@
     <arg name="enable_odometry_to_odom" default="true"/>
     <arg name="enable_cloud_to_scan" default="true"/>
 
-    <!-- TF strategy defaults: use livox extrinsic chain -->
-    <arg name="enable_tf_map_to_odom_fusion" default="true"/>
+    <!-- TF strategy defaults: single chain map -> body -> livox_frame -> base_link_fusion -> base_link -->
+    <arg name="enable_tf_map_to_odom_fusion" default="false"/>
     <arg name="enable_tf_body_to_base_link" default="true"/>
-    <arg name="enable_tf_base_link_to_base_link_fusion" default="false"/>
+    <arg name="enable_tf_base_link_to_base_link_fusion" default="true"/>
     <arg name="enable_tf_livox_to_base_link_fusion" default="true"/>
 
     <!-- livox_frame -> base_link_fusion extrinsic (override by args when needed) -->
