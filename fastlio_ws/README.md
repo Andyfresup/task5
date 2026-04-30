@@ -25,10 +25,10 @@
 
 - 开启：`map -> odom_fusion`
 - 开启：`body -> base_link`
-- 关闭：`base_link -> base_link_fusion`
-- 开启：`livox_frame -> base_link_fusion`
+- 开启：`base_link -> base_link_fusion`
+- 关闭：`livox_frame -> base_link_fusion`
 
-说明：默认采用 Livox 外参链路，避免 `base_link_fusion` 出现双父节点冲突。
+说明：默认采用 `base_link -> base_link_fusion` 链路，避免 `base_link_fusion` 出现双父节点冲突。
 
 ## 依赖与前置条件
 
@@ -86,16 +86,16 @@ roslaunch fast_lio task5_fastlio.launch \
 - `ENABLE_CLOUD_TO_JH_CLOUD`（默认 `true`）
 - `ENABLE_ODOMETRY_TO_ODOM`（默认 `true`）
 - `ENABLE_CLOUD_TO_SCAN`（默认 `true`）
-- `ENABLE_TF_BASE_LINK_TO_BASE_LINK_FUSION`（默认 `false`）
-- `ENABLE_TF_LIVOX_TO_BASE_LINK_FUSION`（默认 `true`）
+- `ENABLE_TF_BASE_LINK_TO_BASE_LINK_FUSION`（默认 `true`）
+- `ENABLE_TF_LIVOX_TO_BASE_LINK_FUSION`（默认 `false`）
 - `LIVOX_TO_BASE_LINK_FUSION_X/Y/Z`、`LIVOX_TO_BASE_LINK_FUSION_ROLL/PITCH/YAW`
 
-示例：切换为 `base_link -> base_link_fusion` 链路（并关闭 Livox 外参链）
+示例：切换为 Livox 外参链路（并关闭 `base_link -> base_link_fusion`）
 
 ```bash
 cd fastlio_ws
-ENABLE_TF_BASE_LINK_TO_BASE_LINK_FUSION=true \
-ENABLE_TF_LIVOX_TO_BASE_LINK_FUSION=false \
+ENABLE_TF_BASE_LINK_TO_BASE_LINK_FUSION=false \
+ENABLE_TF_LIVOX_TO_BASE_LINK_FUSION=true \
 bash run_task5_fastlio_real.sh
 ```
 

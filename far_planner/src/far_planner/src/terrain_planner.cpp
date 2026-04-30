@@ -183,7 +183,10 @@ void TerrainPlanner::VisualPaths() {
     for (const auto& tpath : viz_path_stack_) {
         DrawPath(tpath);
     }
-    local_path_pub_.publish(terrain_paths_marker);
+    // Only publish if marker has points to avoid rviz error
+    if (!terrain_paths_marker.points.empty()) {
+        local_path_pub_.publish(terrain_paths_marker);
+    }
     viz_path_stack_.clear();
 }
 

@@ -22,11 +22,11 @@
     <arg name="scan_concurrency_level" default="1"/>
     <arg name="scan_transform_tolerance" default="0.05"/>
 
-    <!-- TF compatibility switches -->
-    <arg name="enable_tf_map_to_odom_fusion" default="true"/>
+          <!-- TF compatibility switches -->
+          <arg name="enable_tf_map_to_odom_fusion" default="false"/>
     <arg name="enable_tf_body_to_base_link" default="true"/>
-    <arg name="enable_tf_base_link_to_base_link_fusion" default="false"/>
-    <arg name="enable_tf_livox_to_base_link_fusion" default="true"/>
+          <arg name="enable_tf_base_link_to_base_link_fusion" default="true"/>
+      <arg name="enable_tf_livox_to_base_link_fusion" default="true"/>
 
     <!-- map -> odom_fusion -->
     <arg name="map_to_odom_fusion_x" default="0.0"/>
@@ -36,7 +36,7 @@
     <arg name="map_to_odom_fusion_pitch" default="0.0"/>
     <arg name="map_to_odom_fusion_roll" default="0.0"/>
 
-    <!-- body -> base_link -->
+      <!-- body -> livox_frame -->
     <arg name="body_to_base_link_x" default="0.0"/>
     <arg name="body_to_base_link_y" default="0.0"/>
     <arg name="body_to_base_link_z" default="0.0"/>
@@ -44,7 +44,7 @@
     <arg name="body_to_base_link_pitch" default="0.0"/>
     <arg name="body_to_base_link_roll" default="0.0"/>
 
-    <!-- base_link -> base_link_fusion -->
+            <!-- base_link_fusion -> base_link -->
     <arg name="base_link_to_base_link_fusion_x" default="0.0"/>
     <arg name="base_link_to_base_link_fusion_y" default="0.0"/>
     <arg name="base_link_to_base_link_fusion_z" default="0.0"/>
@@ -61,8 +61,9 @@
     <arg name="livox_to_base_link_fusion_roll" default="0.0"/>
 
     <!-- NOTE:
-         base_link->base_link_fusion and livox_frame->base_link_fusion are two different parent chains.
-         Keep only one enabled in production to avoid duplicated parent definitions for base_link_fusion.
+          Default task5 single-chain setup:
+          map -> body -> livox_frame -> base_link_fusion -> base_link.
+          This keeps livox_frame connected while avoiding duplicate parents.
     -->
 
     <node if="$(arg enable_tf_map_to_odom_fusion)"
@@ -75,13 +76,13 @@
           pkg="tf2_ros"
           type="static_transform_publisher"
           name="task5_body_to_base_link_tf"
-          args="$(arg body_to_base_link_x) $(arg body_to_base_link_y) $(arg body_to_base_link_z) $(arg body_to_base_link_yaw) $(arg body_to_base_link_pitch) $(arg body_to_base_link_roll) body base_link"/>
+          args="$(arg body_to_base_link_x) $(arg body_to_base_link_y) $(arg body_to_base_link_z) $(arg body_to_base_link_yaw) $(arg body_to_base_link_pitch) $(arg body_to_base_link_roll) body livox_frame"/>
 
     <node if="$(arg enable_tf_base_link_to_base_link_fusion)"
           pkg="tf2_ros"
           type="static_transform_publisher"
           name="task5_base_link_to_base_link_fusion_tf"
-          args="$(arg base_link_to_base_link_fusion_x) $(arg base_link_to_base_link_fusion_y) $(arg base_link_to_base_link_fusion_z) $(arg base_link_to_base_link_fusion_yaw) $(arg base_link_to_base_link_fusion_pitch) $(arg base_link_to_base_link_fusion_roll) base_link base_link_fusion"/>
+          args="$(arg base_link_to_base_link_fusion_x) $(arg base_link_to_base_link_fusion_y) $(arg base_link_to_base_link_fusion_z) $(arg base_link_to_base_link_fusion_yaw) $(arg base_link_to_base_link_fusion_pitch) $(arg base_link_to_base_link_fusion_roll) base_link_fusion base_link"/>
 
     <node if="$(arg enable_tf_livox_to_base_link_fusion)"
           pkg="tf2_ros"
